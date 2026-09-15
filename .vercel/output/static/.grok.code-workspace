@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "../.grok"
+		},
+		{
+			"path": "../migrations"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../scripts"
+		},
+		{
+			"path": "../src"
+		},
+		{
+			"path": "../server"
+		}
+	]
+}

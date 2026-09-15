@@ -1,0 +1,21 @@
+[
+  {
+    "name": "updatePlayerAttributes",
+    "description": "Updates stats, overall rating, name, and position for the player card",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "name": { "type": "STRING", "description": "Player full name" },
+        "position": { "type": "STRING", "description": "Position like ST, CM, CB, GK, RW" },
+        "overall": { "type": "NUMBER", "description": "Overall rating 40-99" },
+        "pace": { "type": "NUMBER", "description": "Pace stat 1-99" },
+        "shooting": { "type": "NUMBER", "description": "Shooting stat 1-99" },
+        "passing": { "type": "NUMBER", "description": "Passing stat 1-99" },
+        "dribbling": { "type": "NUMBER", "description": "Dribbling stat 1-99" },
+        "defending": { "type": "NUMBER", "description": "Defending stat 1-99" },
+        "physical": { "type": "NUMBER", "description": "Physical stat 1-99" }
+      },
+      "required": ["name", "position", "overall"]
+    }
+  }
+]
