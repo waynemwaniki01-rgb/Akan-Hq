@@ -3,6 +3,7 @@ import { Camera, ChevronLeft, ChevronRight, RotateCcw, Sparkles, Upload, WandSpa
 import { Button } from "@/components/ui/button";
 import { PlayerCard } from "./player-card";
 import { cn, cropFacePortrait } from "@/lib/utils";
+import { compressImageToDataUrl } from "@/lib/pitch/image";
 import { emptyGk, emptySix, isGoalkeeper, spreadDetail } from "@/lib/pitch/ratings";
 import {
   CARD_DESIGNS,
@@ -222,8 +223,6 @@ export function PlayerForm({
   const category = usePitchStore((s) => s.category);
 
   // Sign-in is disabled for now, so everyone edits as a stand-in admin user.
-  // (Previously this checked a `currentUser` from the store and gated
-  // editing based on role/ownership — that whole flow is removed here.)
   const currentUser = { id: "local-user", role: "admin" as const };
   const canEdit = true;
   const readOnlyReason: string | null = null;
@@ -273,15 +272,6 @@ export function PlayerForm({
   const removePreset = usePitchStore((s) => s.removePreset);
 
   // --- Save button status (idle -> saving -> synced) ---
-  // Kept as a tiny UI transition (no real network round-trip anymore, since
-  // `addPlayer`/`updatePlayer` write straight into the Zustand store, which
-  // is persisted to localStorage automatically).
-  //
-  // IMPORTANT: that persistence step can fail (e.g. QuotaExceededError once
-  // a handful of cards with baked-in photos push past localStorage's ~5-10MB
-  // per-origin cap). If it throws and nothing catches it, `saveStatus` gets
-  // stuck on "saving" forever — that's the bug this file previously had.
-  // Every path below now always resolves to "synced" or "error".
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveStatusResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -389,6 +379,10 @@ export function PlayerForm({
     }
   }
 
+  // Reference-image uploads are cropped, THEN compressed to a small JPEG
+  // before ever landing in state — this is what was previously missing,
+  // causing raw multi-MB images to sit in the store and blow past Vercel's
+  // request size limit on /desk saves.
   async function useCardReferences(files: FileList | null) {
     if (!canEdit) return;
     const selected = Array.from(files ?? []);
@@ -396,25 +390,30 @@ export function PlayerForm({
     if (!source) return;
     try {
       setPhotoSource(source);
-      setPhoto(await cropFacePortrait(source, 740, photoFrame));
+      const cropped = await cropFacePortrait(source, 740, photoFrame);
+      setPhoto(await compressImageToDataUrl(cropped, { maxDim: 640, quality: 0.82 }));
       setCardAiStatus(`${selected.length} reference image${selected.length === 1 ? "" : "s"} uploaded. The latest image is now on the live card.`);
     } catch {
       setCardAiStatus("That image could not be read. Try a PNG, JPG, or WEBP file.");
     }
   }
 
+  // Same fix applied when switching face/full-body framing, since that
+  // re-crops (and therefore must re-compress) the existing photo source.
   async function applyPhotoFrame(nextFrame: "face" | "full-body") {
     if (!canEdit) return;
     setPhotoFrame(nextFrame);
     patchStyle({ photoFrame: nextFrame });
-    if (photoSource) setPhoto(await cropFacePortrait(photoSource, 740, nextFrame));
+    if (photoSource) {
+      const cropped = await cropFacePortrait(photoSource, 740, nextFrame);
+      setPhoto(await compressImageToDataUrl(cropped, { maxDim: 640, quality: 0.82 }));
+    }
   }
 
   function togglePlayStyle(id: string) {
     if (!canEdit) return;
     setPlayStyles((prev) => {
       if (prev.includes(id)) {
-        // Removing a style also removes its "+" upgrade, if any.
         setPlayStylesPlus((plus) => plus.filter((x) => x !== id));
         return prev.filter((x) => x !== id);
       }
@@ -514,7 +513,6 @@ export function PlayerForm({
   // browsing, etc.) instead of just failing silently.
   function describeSaveError(err: unknown): string {
     if (err instanceof DOMException) {
-      // Firefox uses NS_ERROR_DOM_QUOTA_REACHED (22); most others use name/code 22.
       if (err.name === "QuotaExceededError" || err.code === 22 || err.name === "NS_ERROR_DOM_QUOTA_REACHED") {
         return "Storage is full (too many cards/images). Delete an old card, or export this one, then retry.";
       }
@@ -533,12 +531,6 @@ export function PlayerForm({
     setSaveStatus("saving");
     setSaveError(null);
 
-    // `addPlayer`/`updatePlayer` write synchronously into the Zustand store,
-    // which is persisted to localStorage automatically (see `store.ts`) — no
-    // network round-trip needed, but the underlying `localStorage.setItem`
-    // CAN throw (quota exceeded, private-browsing restrictions, etc). Wrap
-    // it so a thrown error always resolves the button state instead of
-    // leaving it stuck on "Saving..." forever.
     try {
       let id: string;
       if (existing) {
@@ -553,8 +545,7 @@ export function PlayerForm({
       console.error("Save failed:", err);
       setSaveError(describeSaveError(err));
       setSaveStatus("error");
-      return; // don't schedule the idle reset below on failure — let the
-              // person read the error and manually retry.
+      return;
     }
 
     saveStatusResetRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
@@ -599,7 +590,8 @@ export function PlayerForm({
                     const f = e.target.files?.[0];
                     if (f && canEdit) {
                       setPhotoSource(f);
-                      setPhoto(await cropFacePortrait(f, 740, photoFrame));
+                      const cropped = await cropFacePortrait(f, 740, photoFrame);
+                      setPhoto(await compressImageToDataUrl(cropped, { maxDim: 640, quality: 0.82 }));
                     }
                     e.target.value = "";
                   }}

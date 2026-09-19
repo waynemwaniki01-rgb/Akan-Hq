@@ -14,7 +14,8 @@ import {
   normalizeCardDesign,
   type CardTier,
 } from "@/lib/pitch/card-system";
-import { cn } from "@/lib/utils";
+import { cn, cropFacePortrait } from "@/lib/utils";
+import { compressImageToDataUrl } from "@/lib/pitch/image";
 
 const ROLES: CoachRole[] = ["Head Coach", "Assistant Coach", "Goalkeeping Coach", "Fitness Coach", "Scout"];
 
@@ -36,6 +37,10 @@ function CoachForm({ existing, onClose }: { existing?: Coach; onClose: () => voi
   const [team, setTeam] = useState(existing?.team ?? "AKAN HQ");
   const [bio, setBio] = useState(existing?.bio ?? "");
   const [photo, setPhoto] = useState<string | null>(existing?.photo ?? null);
+  // Track the raw source file so switching Face/Full-body framing (in the
+  // Card design tab) can re-crop it, same as player-form.tsx does.
+  const [photoSource, setPhotoSource] = useState<File | null>(null);
+  const [photoStatus, setPhotoStatus] = useState<string | null>(null);
   const [cardDesign, setCardDesign] = useState<CardDesign>(normalizeCardDesign(existing?.cardDesign ?? "auto"));
   const [style, setStyle] = useState<CardStyle>(mergeCardStyle(existing?.cardStyle));
 
@@ -48,6 +53,34 @@ function CoachForm({ existing, onClose }: { existing?: Coach; onClose: () => voi
     if (d !== "auto") {
       const pal = TIER_PALETTE[d as CardTier];
       if (pal) patchStyle(pal);
+    }
+  }
+
+  // Crop THEN compress before it ever touches state — this is what was
+  // missing here. The raw FileReader.readAsDataURL() previously used could
+  // put multi-MB base64 images into the store, which is exactly what blew
+  // past Vercel's request size limit and caused 413s on /desk saves for
+  // coach photos, same as it did for player photos before that fix.
+  async function useCoachPhoto(file: File | null) {
+    if (!file) return;
+    try {
+      setPhotoSource(file);
+      const cropped = await cropFacePortrait(file, 740, style.photoFrame);
+      setPhoto(await compressImageToDataUrl(cropped, { maxDim: 640, quality: 0.82 }));
+      setPhotoStatus(null);
+    } catch {
+      setPhotoStatus("That image could not be read. Try a PNG, JPG, or WEBP file.");
+    }
+  }
+
+  // Re-crop the existing source when the portrait framing toggle changes,
+  // so Face focus / Full body actually re-applies to the uploaded photo
+  // instead of only affecting future uploads.
+  async function applyPhotoFrame(nextFrame: "face" | "full-body") {
+    patchStyle({ photoFrame: nextFrame });
+    if (photoSource) {
+      const cropped = await cropFacePortrait(photoSource, 740, nextFrame);
+      setPhoto(await compressImageToDataUrl(cropped, { maxDim: 640, quality: 0.82 }));
     }
   }
 
@@ -131,14 +164,25 @@ function CoachForm({ existing, onClose }: { existing?: Coach; onClose: () => voi
                   className="hidden"
                   onChange={async (e) => {
                     const f = e.target.files?.[0];
-                    if (!f) return;
-                    const reader = new FileReader();
-                    reader.onload = () => setPhoto(String(reader.result));
-                    reader.readAsDataURL(f);
+                    await useCoachPhoto(f ?? null);
+                    e.target.value = "";
                   }}
                 />
                 <span className="text-xs text-muted">Upload photo</span>
               </label>
+              {photoStatus && <p className="text-xs text-warn">{photoStatus}</p>}
+              {photo && (
+                <button
+                  type="button"
+                  className="text-xs text-muted underline"
+                  onClick={() => {
+                    setPhoto(null);
+                    setPhotoSource(null);
+                  }}
+                >
+                  Remove photo
+                </button>
+              )}
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -249,7 +293,7 @@ function CoachForm({ existing, onClose }: { existing?: Coach; onClose: () => voi
                     <button
                       key={frame}
                       type="button"
-                      onClick={() => patchStyle({ photoFrame: frame })}
+                      onClick={() => void applyPhotoFrame(frame)}
                       className={cn(
                         "rounded-full border px-3 py-1.5 text-xs font-semibold",
                         style.photoFrame === frame ? "border-accent bg-accent/10 text-accent" : "border-line bg-elevated text-muted",
