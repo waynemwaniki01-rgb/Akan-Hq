@@ -11,9 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AskCoachRouteImport } from './routes/ask-coach'
+import { Route as DeskRouteImport } from './routes/desk'
+import { Route as MeRouteImport } from './routes/me'
 import { Route as SendCallupRouteImport } from './routes/send-callup'
 import { Route as ApiAskCoachRouteImport } from './routes/api/ask-coach'
-import { Route as ApiDeskRouteImport } from './routes/api/desk'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -26,6 +27,16 @@ const AskCoachRoute = AskCoachRouteImport.update({
   path: '/ask-coach',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeskRoute = DeskRouteImport.update({
+  id: '/desk',
+  path: '/desk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeRoute = MeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SendCallupRoute = SendCallupRouteImport.update({
   id: '/send-callup',
   path: '/send-callup',
@@ -34,11 +45,6 @@ const SendCallupRoute = SendCallupRouteImport.update({
 const ApiAskCoachRoute = ApiAskCoachRouteImport.update({
   id: '/api/ask-coach',
   path: '/api/ask-coach',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiDeskRoute = ApiDeskRouteImport.update({
-  id: '/api/desk',
-  path: '/api/desk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -50,26 +56,29 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ask-coach': typeof AskCoachRoute
+  '/desk': typeof DeskRoute
+  '/me': typeof MeRoute
   '/send-callup': typeof SendCallupRoute
   '/api/ask-coach': typeof ApiAskCoachRoute
-  '/api/desk': typeof ApiDeskRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ask-coach': typeof AskCoachRoute
+  '/desk': typeof DeskRoute
+  '/me': typeof MeRoute
   '/send-callup': typeof SendCallupRoute
   '/api/ask-coach': typeof ApiAskCoachRoute
-  '/api/desk': typeof ApiDeskRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ask-coach': typeof AskCoachRoute
+  '/desk': typeof DeskRoute
+  '/me': typeof MeRoute
   '/send-callup': typeof SendCallupRoute
   '/api/ask-coach': typeof ApiAskCoachRoute
-  '/api/desk': typeof ApiDeskRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -77,34 +86,38 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ask-coach'
+    | '/desk'
+    | '/me'
     | '/send-callup'
     | '/api/ask-coach'
-    | '/api/desk'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/ask-coach'
+    | '/desk'
+    | '/me'
     | '/send-callup'
     | '/api/ask-coach'
-    | '/api/desk'
     | '/api/auth/$'
   id:
     | '__root__'
     | '/'
     | '/ask-coach'
+    | '/desk'
+    | '/me'
     | '/send-callup'
     | '/api/ask-coach'
-    | '/api/desk'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AskCoachRoute: typeof AskCoachRoute
+  DeskRoute: typeof DeskRoute
+  MeRoute: typeof MeRoute
   SendCallupRoute: typeof SendCallupRoute
   ApiAskCoachRoute: typeof ApiAskCoachRoute
-  ApiDeskRoute: typeof ApiDeskRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -124,6 +137,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AskCoachRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/desk': {
+      id: '/desk'
+      path: '/desk'
+      fullPath: '/desk'
+      preLoaderRoute: typeof DeskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/me': {
+      id: '/me'
+      path: '/me'
+      fullPath: '/me'
+      preLoaderRoute: typeof MeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/send-callup': {
       id: '/send-callup'
       path: '/send-callup'
@@ -136,13 +163,6 @@ declare module '@tanstack/react-router' {
       path: '/api/ask-coach'
       fullPath: '/api/ask-coach'
       preLoaderRoute: typeof ApiAskCoachRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/desk': {
-      id: '/api/desk'
-      path: '/api/desk'
-      fullPath: '/api/desk'
-      preLoaderRoute: typeof ApiDeskRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -158,9 +178,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AskCoachRoute: AskCoachRoute,
+  DeskRoute: DeskRoute,
+  MeRoute: MeRoute,
   SendCallupRoute: SendCallupRoute,
   ApiAskCoachRoute: ApiAskCoachRoute,
-  ApiDeskRoute: ApiDeskRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

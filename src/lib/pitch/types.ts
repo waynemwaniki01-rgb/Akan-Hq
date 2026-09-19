@@ -214,6 +214,8 @@ export type Player = {
   skillMoves: StarRating;
   history: AttrHistoryEntry[];
   createdAt: string;
+  /** Whether this player is on the active roster — off-roster players are hidden from call-up building by default. */
+  onRoster?: boolean;
 };
 
 export type Training = {
@@ -337,4 +339,31 @@ export type DeskData = {
   opponentIntel: OpponentIntel;
   designPresets: DesignPreset[];
   meta: { seeded: boolean; version: number };
+};
+
+// ── Tactical sequences (Simulate view) ──────────────────────────────────
+// Used by src/components/pitch/tactiq-views.tsx to build and play back
+// phase-by-phase attacking/defending combinations on the board.
+
+export type PhaseEventKind = "shot" | "goal" | "save" | "block";
+
+export type PhaseEvent = {
+  kind: PhaseEventKind;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+};
+
+export type TacticalPhase = {
+  id: string;
+  own: PitchSlot[];
+  opp: PitchSlot[];
+  ball: { x: number; y: number };
+  note: string;
+  event: PhaseEvent | null;
+};
+
+export type TacticalSequence = {
+  id: string;
+  name: string;
+  phases: TacticalPhase[];
 };

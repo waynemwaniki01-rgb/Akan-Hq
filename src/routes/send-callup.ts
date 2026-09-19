@@ -286,6 +286,17 @@ function notSelectedEmail(r: Recipient, callUpName: string, coachName: string, c
         </td>
       </tr>
       <tr>
+        <td style="padding:8px 28px 4px;text-align:center;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+            <tr>
+              <td style="background:linear-gradient(135deg, rgba(125,143,136,0.16), rgba(125,143,136,0.03));border:1px solid rgba(125,143,136,0.32);border-radius:24px;padding:6px 20px;">
+                <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:800;color:#c9d2ce;letter-spacing:0.5px;">📋 SQUAD UPDATE</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
         <td style="padding:20px 28px 0;text-align:left;">
           <p style="font-family:'Segoe UI',Arial,sans-serif;color:#dfe8e2;font-size:15px;line-height:1.65;margin:0 0 18px;">
             You haven't been selected for the squad this time:

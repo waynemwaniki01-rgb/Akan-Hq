@@ -16,6 +16,7 @@ import { CoachesView } from "./coaches-view";
 import { BoardView, SimulateView, PossessionView, CompareView } from "./tactiq-views";
 import { AdvisorView, SlotPicker } from "./advisor-view";
 import { EmailPasswordForm, SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
+import { canEditRoster, useRole } from "@/lib/auth/use-role";
 import { CATEGORIES, type PitchSlot } from "@/lib/pitch/types";
 import { usePitchStore } from "@/lib/pitch/store";
 import { rankFormations, slotMapFromEval } from "@/lib/pitch/ai";
@@ -51,29 +52,31 @@ export function AppShell() {
   const setReducedMotion = usePitchStore((s) => s.setReducedMotion);
   const syncState = usePitchStore((s) => s.syncState);
   const syncError = usePitchStore((s) => s.syncError);
+  const saveToServer = usePitchStore((s) => s.saveToServer);
+  const { role } = useRole();
+  const canEdit = canEditRoster(role);
   const [pickSlot, setPickSlot] = useState<PitchSlot | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saved">("idle");
+  const [signInOpen, setSignInOpen] = useState(false);
 
-  const saveDesk = async () => {
-    await usePitchStore.getState().saveToServer();
-    if (usePitchStore.getState().syncState !== "error") {
-      setSaveState("saved");
-      window.setTimeout(() => setSaveState("idle"), 1200);
-    }
+  const saveDesk = () => {
+    void saveToServer();
   };
 
-  // Hydrate from local (IndexedDB) storage first for an instant first paint,
-  // then immediately pull the source-of-truth copy from the server and
-  // overwrite local state with it.
   useEffect(() => {
-    const finish = () => {
+    const unsub = usePitchStore.persist.onFinishHydration(() => {
       usePitchStore.setState({ loaded: true });
-      void usePitchStore.getState().loadFromServer();
-    };
-    const unsub = usePitchStore.persist.onFinishHydration(finish);
-    if (usePitchStore.persist.hasHydrated()) finish();
+    });
+    if (usePitchStore.persist.hasHydrated()) usePitchStore.setState({ loaded: true });
     return unsub;
   }, []);
+
+  // Once local (IndexedDB) hydration is done, pull the latest shared desk
+  // from the server so this browser sees data saved from any other device.
+  // The local copy still renders immediately above — this just refreshes it.
+  useEffect(() => {
+    if (!loaded) return;
+    void usePitchStore.getState().loadFromServer();
+  }, [loaded]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -101,27 +104,10 @@ export function AppShell() {
 
   return (
     <>
-      <SignedOut>
-        <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-bg text-fg px-4">
-          <div className="rounded-full bg-[#0e1513] p-1.5 ring-1 ring-[#dfe8df]/15 shadow-[0_8px_30px_rgba(0,0,0,0.38)]">
-            <Crest size={74} />
-          </div>
-          <div className="text-center">
-            <div className="font-display text-2xl font-semibold uppercase tracking-[0.2em] text-[#f3f5f2]">
-              AGA KHAN
-            </div>
-            <div className="mt-2 flex items-center justify-center gap-2 text-[9px] font-semibold uppercase tracking-[0.3em] text-[#d4b66a]">
-              <span className="h-px w-5 bg-[#d4b66a]/70" />
-              Football Academy
-              <span className="h-px w-5 bg-[#d4b66a]/70" />
-            </div>
-          </div>
-          <EmailPasswordForm />
-        </div>
-      </SignedOut>
-
-      <SignedIn>
-        <div className="min-h-screen bg-bg text-fg">
+      {/* Squad view is public — anyone with the link can look at cards, the
+          roster, matches, etc. without signing in. Sign-in is only needed to
+          edit, and that control lives in the header below (SignInPanel). */}
+      <div className="min-h-screen bg-bg text-fg">
           <header className="border-b border-line bg-surface/90">
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-3">
@@ -170,26 +156,17 @@ export function AppShell() {
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  onClick={saveDesk}
-                  disabled={syncState === "saving"}
-                  className={cn(
-                    "h-9 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.12em] disabled:opacity-60",
-                    syncState === "error"
-                      ? "border-red-400/40 bg-red-500/10 text-red-300"
-                      : "border-[#a7b6a7]/30 bg-[#142019] text-[#e4ece5]",
-                  )}
-                  title={syncError ?? "Save current changes"}
-                >
-                  {syncState === "saving"
-                    ? "Saving…"
-                    : syncState === "error"
-                      ? "Retry save"
-                      : saveState === "saved"
-                        ? "Saved"
-                        : "Save"}
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={saveDesk}
+                    disabled={syncState === "saving"}
+                    className="h-9 rounded-full border border-[#a7b6a7]/30 bg-[#142019] px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#e4ece5] disabled:cursor-wait disabled:opacity-60"
+                    title={syncError ?? "Save current changes to the shared database"}
+                  >
+                    {syncState === "saving" ? "Saving…" : syncState === "error" ? "Retry save" : "Save"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setReducedMotion(!reducedMotion)}
@@ -201,7 +178,18 @@ export function AppShell() {
                 >
                   {reducedMotion ? "Motion off" : "Motion on"}
                 </button>
-                <UserButton />
+                <SignedIn>
+                  <UserButton />
+                </SignedIn>
+                <SignedOut>
+                  <button
+                    type="button"
+                    onClick={() => setSignInOpen(true)}
+                    className="h-9 rounded-full border border-line bg-[#101814] px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted hover:text-fg"
+                  >
+                    Sign in
+                  </button>
+                </SignedOut>
               </div>
             </div>
             {mode === "squad" && (
@@ -296,11 +284,15 @@ export function AppShell() {
           <Modal open={!!selected} onClose={() => setSelectedPlayer(null)} wide>
             {selected && <PlayerProfile player={selected} onClose={() => setSelectedPlayer(null)} />}
           </Modal>
-          <Modal open={!!pickSlot} onClose={() => setPickSlot(null)}>
-            {pickSlot && <SlotPicker slot={pickSlot} players={players} onClose={() => setPickSlot(null)} />}
-          </Modal>
-        </div>
-      </SignedIn>
+        <Modal open={!!pickSlot} onClose={() => setPickSlot(null)}>
+          {pickSlot && <SlotPicker slot={pickSlot} players={players} onClose={() => setPickSlot(null)} />}
+        </Modal>
+        <Modal open={signInOpen} onClose={() => setSignInOpen(false)}>
+          <div className="flex flex-col items-center gap-4 p-2">
+            <EmailPasswordForm />
+          </div>
+        </Modal>
+      </div>
     </>
   );
 }

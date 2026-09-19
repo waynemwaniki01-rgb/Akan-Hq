@@ -2,9 +2,9 @@ import { create } from "zustand";
 import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
 import { clamp, uid } from "@/lib/utils";
-import { emptyData } from "./seed";
-import { spreadDetail } from "./ratings";
-import { positionFromPoint } from "./formations";
+import { emptyData } from "@/lib/pitch/seed";
+import { spreadDetail } from "@/lib/pitch/ratings";
+import { FORMAT_LIST, positionFromPoint } from "@/lib/pitch/formations";
 import type {
   CardDesign,
   CardStyle,
@@ -23,17 +23,19 @@ import type {
   PositionCode,
   SlotOverride,
   StarRating,
+  TacticalPhase,
+  TacticalSequence,
   Training,
-} from "./types";
- 
+} from "@/lib/pitch/types";
+
 export type Mode = "squad" | "tactiq" | "advisor";
 export type SquadTab = "home" | "players" | "coaches" | "training" | "matches" | "calendar" | "legacy";
 export type TactiqTab = "board" | "simulate" | "possession" | "compare";
 export type FormatSize = 7 | 8 | 9 | 11;
- 
+
 type SyncState = "idle" | "loading" | "saving" | "error";
- 
-type PitchStore = DeskData & {
+
+export type PitchStore = DeskData & {
   loaded: boolean;
   mode: Mode;
   squadTab: SquadTab;
@@ -46,12 +48,17 @@ type PitchStore = DeskData & {
   slotMap: Record<string, string>;
   /** Freeform drag overrides for the Board view — see positionFromPoint in formations.ts. */
   slotOverrides: Record<string, SlotOverride>;
+  /** Ids of players currently on the active roster (distinct from a player's own onRoster flag). */
+  rosterIds: string[];
+  /** Saved tactical combinations built in the Simulate view. */
+  tacticalSequences: TacticalSequence[];
   selectedPlayerId: string | null;
   reducedMotion: boolean;
   /** Server sync status — "idle" | "loading" | "saving" | "error". */
   syncState: SyncState;
   /** Human-readable message for the last sync error, if any. */
   syncError: string | null;
+
   setMode: (m: Mode) => void;
   setSquadTab: (t: SquadTab) => void;
   setTactiqTab: (t: TactiqTab) => void;
@@ -67,25 +74,34 @@ type PitchStore = DeskData & {
   clearSlotOverrides: () => void;
   setSelectedPlayer: (id: string | null) => void;
   setReducedMotion: (v: boolean) => void;
+
   addPlayer: (p: Omit<Player, "id" | "createdAt" | "history">) => string;
   updatePlayer: (id: string, patch: Partial<Player>) => void;
   removePlayer: (id: string) => void;
   duplicatePlayer: (id: string) => string | null;
   setPlayerPhoto: (id: string, photo: string | null) => void;
   adjustAttribute: (id: string, attr: string, value: number, reason: string) => void;
+  /** Toggle a player's active-roster membership (kept separate from Player.onRoster). */
+  toggleRoster: (id: string) => void;
+
   addTraining: (date: string, title: string) => void;
   removeTraining: (id: string) => void;
   toggleAttendance: (trainingId: string, playerId: string) => void;
+
   addMatch: (m: { date: string; opponent: string; venue: "Home" | "Away"; kickoff: string; kind: MatchKind }) => void;
   removeMatch: (id: string) => void;
   updateMatch: (id: string, patch: Partial<Match>) => void;
+
   addTrophy: (t: { name: string; competition: string; season: string; notes: string; photo?: string | null }) => void;
   removeTrophy: (id: string) => void;
+
   setIntel: (intel: OpponentIntel) => void;
+
   savePreset: (name: string, cardDesign: CardDesign, style: CardStyle) => string;
   updatePreset: (id: string, patch: Partial<DesignPreset>) => void;
   duplicatePreset: (id: string) => string | null;
   removePreset: (id: string) => void;
+
   addCoach: (c: {
     name: string;
     photo: string | null;
@@ -99,20 +115,30 @@ type PitchStore = DeskData & {
   }) => string;
   updateCoach: (id: string, patch: Partial<Coach>) => void;
   removeCoach: (id: string) => void;
+
   trainingCountForPlayer: (playerId: string) => number;
+
   createCallUp: (name: string, coachId: string, playerIds: string[]) => string;
   duplicateCallUpAsNew: (id: string, name: string) => string | null;
   updateCallUpEntry: (callUpId: string, playerId: string, patch: Partial<CallUpEntry>) => void;
   removeCallUp: (id: string) => void;
+
+  // ── Tactical sequences (Simulate view) ──────────────────────────────
+  saveSequence: (name: string, phases: TacticalPhase[]) => string;
+  updateSequence: (id: string, patch: { name?: string; phases?: TacticalPhase[] }) => void;
+  removeSequence: (id: string) => void;
+  duplicateSequence: (id: string) => void;
+
   resetDesk: () => void;
-  /** Pull the whole desk from the server (GET /api/desk) and replace local state with it. */
+
+  /** Pull the whole desk from the server (GET /desk) and replace local state with it. */
   loadFromServer: () => Promise<void>;
-  /** Push the whole desk to the server (POST /api/desk). */
+  /** Push the whole desk to the server (POST /desk). */
   saveToServer: () => Promise<void>;
 };
- 
+
 const STORAGE_KEY = "pitchhq-os-v2";
- 
+
 function persistSlice(s: PitchStore): DeskData {
   return {
     players: s.players,
@@ -126,7 +152,7 @@ function persistSlice(s: PitchStore): DeskData {
     meta: s.meta,
   };
 }
- 
+
 const indexedDBStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     const fromIdb = await idbGet<string>(name);
@@ -150,7 +176,7 @@ const indexedDBStorage: StateStorage = {
     await idbDel(name);
   },
 };
- 
+
 export const usePitchStore = create<PitchStore>()(
   persist(
     (set, get) => ({
@@ -161,15 +187,18 @@ export const usePitchStore = create<PitchStore>()(
       tactiqTab: "board",
       category: "U15",
       formatSize: 11,
-      formation: "4-3-3",
-      compareA: "4-3-3",
-      compareB: "4-2-3-1",
+      formation: FORMAT_LIST[11][0],
+      compareA: FORMAT_LIST[11][0],
+      compareB: FORMAT_LIST[11][1] ?? FORMAT_LIST[11][0],
       slotMap: {},
       slotOverrides: {},
+      rosterIds: [],
+      tacticalSequences: [],
       selectedPlayerId: null,
       reducedMotion: false,
       syncState: "idle",
       syncError: null,
+
       setMode: (mode) => set({ mode }),
       setSquadTab: (squadTab) => set({ squadTab, mode: "squad" }),
       setTactiqTab: (tactiqTab) => set({ tactiqTab, mode: "tactiq" }),
@@ -178,6 +207,7 @@ export const usePitchStore = create<PitchStore>()(
       setCompare: (compareA, compareB) => set({ compareA, compareB }),
       setSlotMap: (slotMap) => set({ slotMap }),
       setReducedMotion: (reducedMotion) => set({ reducedMotion }),
+
       assignSlot: (slotId, playerId) =>
         set((s) => {
           const slotMap = { ...s.slotMap };
@@ -210,6 +240,7 @@ export const usePitchStore = create<PitchStore>()(
         }),
       clearSlotOverrides: () => set({ slotOverrides: {} }),
       setSelectedPlayer: (selectedPlayerId) => set({ selectedPlayerId }),
+
       addPlayer: (p) => {
         const id = uid();
         const player: Player = {
@@ -228,6 +259,7 @@ export const usePitchStore = create<PitchStore>()(
       removePlayer: (id) =>
         set((s) => ({
           players: s.players.filter((p) => p.id !== id),
+          rosterIds: s.rosterIds.filter((r) => r !== id),
           trainings: s.trainings.map((t) => {
             const attendance = { ...t.attendance };
             delete attendance[id];
@@ -327,6 +359,11 @@ export const usePitchStore = create<PitchStore>()(
             return next;
           }),
         })),
+      toggleRoster: (id) =>
+        set((s) => ({
+          rosterIds: s.rosterIds.includes(id) ? s.rosterIds.filter((r) => r !== id) : [...s.rosterIds, id],
+        })),
+
       addTraining: (date, title) =>
         set((s) => ({
           trainings: [
@@ -343,6 +380,7 @@ export const usePitchStore = create<PitchStore>()(
               : t,
           ),
         })),
+
       addMatch: (m) =>
         set((s) => ({
           matches: [
@@ -366,6 +404,7 @@ export const usePitchStore = create<PitchStore>()(
         set((s) => ({
           matches: s.matches.map((m) => (m.id === id ? { ...m, ...patch } : m)),
         })),
+
       addTrophy: (t) =>
         set((s) => ({
           trophies: [
@@ -382,7 +421,9 @@ export const usePitchStore = create<PitchStore>()(
           ],
         })),
       removeTrophy: (id) => set((s) => ({ trophies: s.trophies.filter((t) => t.id !== id) })),
+
       setIntel: (opponentIntel) => set({ opponentIntel }),
+
       savePreset: (name, cardDesign, style) => {
         const id = uid();
         set((s) => ({
@@ -400,13 +441,12 @@ export const usePitchStore = create<PitchStore>()(
         return get().savePreset(`${src.name} copy`, src.cardDesign, src.style);
       },
       removePreset: (id) => set((s) => ({ designPresets: s.designPresets.filter((p) => p.id !== id) })),
+
       addCoach: (c) => {
         const id = uid();
         const coach: Coach = {
           ...c,
           id,
-          // Guard against ever writing an empty/invalid cardDesign — mirrors
-          // the defensive fallback now used when reading it in CoachCard.
           cardDesign: c.cardDesign ?? "auto",
           category: get().category,
           createdAt: new Date().toISOString(),
@@ -421,10 +461,12 @@ export const usePitchStore = create<PitchStore>()(
           coaches: s.coaches.filter((c) => c.id !== id),
           callUps: s.callUps.filter((cu) => cu.coachId !== id),
         })),
+
       trainingCountForPlayer: (playerId) => {
         const { trainings, category } = get();
         return trainings.filter((t) => t.category === category && t.attendance?.[playerId]).length;
       },
+
       createCallUp: (name, coachId, playerIds) => {
         const id = uid();
         const entries: CallUpEntry[] = get()
@@ -470,35 +512,63 @@ export const usePitchStore = create<PitchStore>()(
           ),
         })),
       removeCallUp: (id) => set((s) => ({ callUps: s.callUps.filter((c) => c.id !== id) })),
+
+      // ── Tactical sequences (Simulate view) ────────────────────────────
+      saveSequence: (name, phases) => {
+        const id = uid();
+        set((s) => ({
+          tacticalSequences: [...(s.tacticalSequences ?? []), { id, name, phases } as TacticalSequence],
+        }));
+        return id;
+      },
+      updateSequence: (id, patch) =>
+        set((s) => ({
+          tacticalSequences: (s.tacticalSequences ?? []).map((sq) => (sq.id === id ? { ...sq, ...patch } : sq)),
+        })),
+      removeSequence: (id) =>
+        set((s) => ({ tacticalSequences: (s.tacticalSequences ?? []).filter((sq) => sq.id !== id) })),
+      duplicateSequence: (id) =>
+        set((s) => {
+          const list = s.tacticalSequences ?? [];
+          const src = list.find((sq) => sq.id === id);
+          if (!src) return {};
+          const copy: TacticalSequence = {
+            ...src,
+            id: uid(),
+            name: `${src.name} (copy)`,
+            phases: src.phases.map((p) => ({ ...p, id: uid() })),
+          };
+          return { tacticalSequences: [...list, copy] };
+        }),
+
       resetDesk: () =>
         set({
           ...emptyData(),
           slotMap: {},
           slotOverrides: {},
+          rosterIds: [],
+          tacticalSequences: [],
           selectedPlayerId: null,
-          formation: "4-3-3",
+          formation: FORMAT_LIST[11][0],
           formatSize: 11,
         }),
- 
+
       // ── Server sync ─────────────────────────────────────────────────────
-      // Full-replace sync against /api/desk (see src/routes/api/desk.ts).
-      // Board/UI state (mode, tabs, slotMap, formation, etc.) stays
-      // local-only — only the DeskData slice (players, coaches, trainings,
-      // matches, trophies, callUps, designPresets, opponentIntel)
-      // round-trips to the server, scoped per signed-in user.
+      // Full-replace sync against /desk (see src/routes/desk.ts). Board/UI
+      // state (mode, tabs, slotMap, formation, rosterIds, tacticalSequences,
+      // etc.) stays local-only — only the DeskData slice (players, coaches,
+      // trainings, matches, trophies, callUps, designPresets, opponentIntel)
+      // round-trips to the server.
       loadFromServer: async () => {
         set({ syncState: "loading", syncError: null });
         try {
-          const res = await fetch("/api/desk");
+          const res = await fetch("/desk");
           if (!res.ok) {
             const body = await res.json().catch(() => ({}));
             throw new Error(body.error ?? `Server responded ${res.status}`);
           }
-          const desk = (await res.json()) as DeskData | null;
-          // `null` means this user has never saved a desk yet — keep
-          // whatever's already in local state instead of wiping it out.
-          if (desk) set({ ...desk, syncState: "idle" });
-          else set({ syncState: "idle" });
+          const desk = (await res.json()) as DeskData;
+          set({ ...desk, syncState: "idle" });
         } catch (err) {
           set({
             syncState: "error",
@@ -510,7 +580,7 @@ export const usePitchStore = create<PitchStore>()(
         set({ syncState: "saving", syncError: null });
         try {
           const desk = persistSlice(get());
-          const res = await fetch("/api/desk", {
+          const res = await fetch("/desk", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(desk),
@@ -543,6 +613,8 @@ export const usePitchStore = create<PitchStore>()(
         compareB: s.compareB,
         slotMap: s.slotMap,
         slotOverrides: s.slotOverrides,
+        rosterIds: s.rosterIds,
+        tacticalSequences: s.tacticalSequences,
         reducedMotion: s.reducedMotion,
       }),
       onRehydrateStorage: () => (state) => {
@@ -552,6 +624,8 @@ export const usePitchStore = create<PitchStore>()(
           if (!state.slotOverrides) state.slotOverrides = {};
           if (!state.coaches) state.coaches = [];
           if (!state.callUps) state.callUps = [];
+          if (!state.rosterIds) state.rosterIds = [];
+          if (!state.tacticalSequences) state.tacticalSequences = [];
           // Backfill cardDesign for any coach saved before the card-design
           // feature existed. Without this, CoachCard reads
           // TIER_META[undefined].layers and crashes.
@@ -564,17 +638,17 @@ export const usePitchStore = create<PitchStore>()(
     },
   ),
 );
- 
+
 export function useHydrated() {
   return usePitchStore((s) => s.loaded);
 }
- 
+
 export function useCategoryPlayers(): Player[] {
   const players = usePitchStore((s) => s.players);
   const category = usePitchStore((s) => s.category);
   return players.filter((p) => p.category === category);
 }
- 
+
 export function withMatchDefaults(
   m: Partial<Match> & Pick<Match, "id" | "date" | "opponent" | "venue" | "kickoff" | "category">,
 ): Match {
@@ -590,7 +664,7 @@ export function withMatchDefaults(
     ...m,
   };
 }
- 
+
 export type PlayerDraft = {
   name: string;
   photo: string | null;
@@ -616,7 +690,7 @@ export type PlayerDraft = {
   playStyles?: string[];
   playStylesPlus?: string[];
 };
- 
+
 export function draftToPlayer(d: PlayerDraft, category: string): Omit<Player, "id" | "createdAt" | "history"> {
   return {
     name: d.name.trim(),
