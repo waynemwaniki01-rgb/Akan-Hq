@@ -510,7 +510,8 @@ export function PlayerForm({
 
   // Turn whatever storage throws into a short, human-readable reason so the
   // "Save failed — retry" state can actually tell you *why* (quota, private
-  // browsing, etc.) instead of just failing silently.
+  // browsing, network, server rejection, etc.) instead of just failing
+  // silently.
   function describeSaveError(err: unknown): string {
     if (err instanceof DOMException) {
       if (err.name === "QuotaExceededError" || err.code === 22 || err.name === "NS_ERROR_DOM_QUOTA_REACHED") {
@@ -522,7 +523,16 @@ export function PlayerForm({
     return "Unknown error while saving.";
   }
 
-  function save() {
+  // Saving now does TWO things, in order:
+  //   1. Update local Zustand state (addPlayer/updatePlayer) — this is what
+  //      makes the change show up instantly in the UI and persists it to
+  //      this browser's IndexedDB.
+  //   2. Push the FULL desk to the server via saveToServer() (POST /desk).
+  //      Without this second step, the edit only ever lived in this one
+  //      browser — it was never written to the database, so it looked
+  //      "saved" but disappeared on next sign-in or on another device.
+  //      This is the fix for that bug.
+  async function save() {
     if (!canEdit || !currentUser || !name.trim()) return;
 
     const payload = draftToPlayer({ ...draft, name }, category);
@@ -531,23 +541,34 @@ export function PlayerForm({
     setSaveStatus("saving");
     setSaveError(null);
 
+    let id: string;
     try {
-      let id: string;
       if (existing) {
         updatePlayer(existing.id, payload);
         id = existing.id;
       } else {
         id = addPlayer(payload);
       }
-      setSaveStatus("synced");
-      onCreated?.(id);
     } catch (err) {
-      console.error("Save failed:", err);
+      console.error("Local save failed:", err);
       setSaveError(describeSaveError(err));
       setSaveStatus("error");
       return;
     }
 
+    try {
+      await usePitchStore.getState().saveToServer();
+      const syncError = usePitchStore.getState().syncError;
+      if (syncError) throw new Error(syncError);
+    } catch (err) {
+      console.error("Server save failed:", err);
+      setSaveError(describeSaveError(err));
+      setSaveStatus("error");
+      return;
+    }
+
+    setSaveStatus("synced");
+    onCreated?.(id);
     saveStatusResetRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
   }
 
@@ -1371,7 +1392,7 @@ export function PlayerForm({
               <p className="max-w-[260px] text-right text-[11px] leading-4 text-warn">{saveError}</p>
             )}
             <Button
-              onClick={save}
+              onClick={() => void save()}
               disabled={!canEdit || !name.trim() || saveStatus === "saving"}
               className={cn(
                 saveStatus === "synced" && "bg-emerald-600 hover:bg-emerald-600",

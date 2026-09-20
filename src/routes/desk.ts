@@ -74,7 +74,7 @@ export const Route = createFileRoute("/desk")({
         // Debug logging
         console.log('[desk] POST - userId:', userId, 'role:', role);
         
-        if (role !== "coach") {
+   if (role !== "owner" && role !== "editor" && role !== "coach") {
           return new Response(JSON.stringify({ error: "You don't have permission to save changes." }), {
             status: 403,
             headers: { "Content-Type": "application/json" },
