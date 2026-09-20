@@ -6,6 +6,7 @@ import { rankFormations, slotMapFromEval, type FormationEval } from "@/lib/pitch
 import { usePitchStore, type FormatSize } from "@/lib/pitch/store";
 import type { Player, PitchSlot } from "@/lib/pitch/types";
 import { cn } from "@/lib/utils";
+import { canEditRoster, useRole } from "@/lib/auth/use-role";
 
 export function AdvisorView({
   players,
@@ -25,6 +26,10 @@ export function AdvisorView({
   const intel = usePitchStore((s) => s.opponentIntel);
   const setIntel = usePitchStore((s) => s.setIntel);
   const [open, setOpen] = useState<string | null>(null);
+  // Opponent notes are part of the shared team desk, so only people who can
+  // edit the roster may change them. Everyone else can read them.
+  const { role } = useRole();
+  const canEditNotes = canEditRoster(role);
 
   const ranked = useMemo(
     () => rankFormations(formatSize, players, matches, intel),
@@ -72,27 +77,46 @@ export function AdvisorView({
       </div>
 
       <div className="rounded-[14px] border border-line bg-surface p-3">
-        <div className="mb-2 font-display text-lg">Opponent notes (optional)</div>
+        <div className="mb-2 font-display text-lg">
+          {canEditNotes ? "Opponent notes (optional)" : "Opponent notes"}
+        </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="text-xs text-muted">
             Strengths
             <textarea
               value={intel.strengths}
-              onChange={(e) => setIntel({ ...intel, strengths: e.target.value })}
-              placeholder="Fast wingers, strong striker, high pressing"
-              className="mt-1 h-20 w-full rounded-[10px] border border-line bg-elevated p-2 text-sm text-fg"
+              readOnly={!canEditNotes}
+              onChange={(e) => {
+                if (!canEditNotes) return;
+                setIntel({ ...intel, strengths: e.target.value });
+              }}
+              placeholder={canEditNotes ? "Fast wingers, strong striker, high pressing" : "Nothing logged."}
+              className={cn(
+                "mt-1 h-20 w-full rounded-[10px] border border-line bg-elevated p-2 text-sm text-fg",
+                !canEditNotes && "cursor-default opacity-70",
+              )}
             />
           </label>
           <label className="text-xs text-muted">
             Weaknesses
             <textarea
               value={intel.weaknesses}
-              onChange={(e) => setIntel({ ...intel, weaknesses: e.target.value })}
-              placeholder="Slow centre-backs, weak midfield, poor transitions"
-              className="mt-1 h-20 w-full rounded-[10px] border border-line bg-elevated p-2 text-sm text-fg"
+              readOnly={!canEditNotes}
+              onChange={(e) => {
+                if (!canEditNotes) return;
+                setIntel({ ...intel, weaknesses: e.target.value });
+              }}
+              placeholder={canEditNotes ? "Slow centre-backs, weak midfield, poor transitions" : "Nothing logged."}
+              className={cn(
+                "mt-1 h-20 w-full rounded-[10px] border border-line bg-elevated p-2 text-sm text-fg",
+                !canEditNotes && "cursor-default opacity-70",
+              )}
             />
           </label>
         </div>
+        {!canEditNotes && (
+          <p className="mt-2 text-[11px] text-subtle">Only coaches and editors can change these notes.</p>
+        )}
       </div>
 
       <div className="rounded-[14px] border border-line bg-surface p-3">

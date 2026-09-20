@@ -411,18 +411,23 @@ function CallUpBuilder({ coach, players, onClose }: { coach: Coach; players: Pla
           coachEmail: coach.email,
           calledNote: calledNote.trim() || null,
           notSelectedNote: notSelectedNote.trim() || null,
+          // NOTE: photo intentionally left out here. The /send-callup route
+          // never reads r.photo or coachPhoto (see the avatarBadge comment
+          // in send-callup.ts — email clients don't render data: URI images
+          // reliably anyway, so it always builds initials-only badges).
+          // Sending each player's base64 photo in this body was pure dead
+          // weight and was what pushed the request past Vercel's size limit
+          // and caused "Send failed (status 413)".
           called: called.map((p) => ({
             playerId: p.id,
             name: p.name,
             email: p.email?.trim() || p.guardianEmail?.trim() || "",
-            photo: p.photo,
             position: p.position,
           })),
           notSelected: notSelected.map((p) => ({
             playerId: p.id,
             name: p.name,
             email: p.email?.trim() || p.guardianEmail?.trim() || "",
-            photo: p.photo,
             position: p.position,
           })),
         }),

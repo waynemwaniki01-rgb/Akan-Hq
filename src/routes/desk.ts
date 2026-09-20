@@ -134,7 +134,22 @@ export const Route = createFileRoute("/desk")({
       },
 
       POST: async ({ request }) => {
-        const { userId, role, playerId } = await getCurrentUserAndRole();
+        // This check used to sit outside any try/catch, so if it failed for
+        // any reason the server answered with a blank "HTTPError" 500 and
+        // hid the real cause. Now it logs the reason and sends it back.
+        let who: Awaited<ReturnType<typeof getCurrentUserAndRole>>;
+        try {
+          who = await getCurrentUserAndRole();
+        } catch (err) {
+          console.error("[desk] POST - could not check who is signed in:", err);
+          return jsonResponse(
+            {
+              error: `Could not check who you are: ${err instanceof Error ? err.message : "unknown error"}`,
+            },
+            500,
+          );
+        }
+        const { userId, role, playerId } = who;
 
         console.log("[desk] POST - userId:", userId, "role:", role);
 
