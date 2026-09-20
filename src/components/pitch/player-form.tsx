@@ -213,14 +213,26 @@ export function PlayerForm({
   existing,
   onClose,
   onCreated,
+  appearanceOnly = false,
 }: {
   existing?: Player;
   onClose: () => void;
   onCreated?: (id: string) => void;
+  /**
+   * Look-only mode, used when a player edits their OWN card. Only the card
+   * design (chassis, colors, frame, image, data layout) and the photo can be
+   * changed. Name, number, position, contact details, ratings and playstyles
+   * are never shown. The server enforces the same rule, so this is just the
+   * friendly version of it.
+   */
+  appearanceOnly?: boolean;
 }) {
   const addPlayer = usePitchStore((s) => s.addPlayer);
   const updatePlayer = usePitchStore((s) => s.updatePlayer);
   const category = usePitchStore((s) => s.category);
+
+  // Look-only mode only makes sense for a card that already exists.
+  const lookOnly = appearanceOnly && !!existing;
 
   // Sign-in is disabled for now, so everyone edits as a stand-in admin user.
   const currentUser = { id: "local-user", role: "admin" as const };
@@ -296,7 +308,9 @@ export function PlayerForm({
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleCardAI = async () => {
-    if (!canEdit || !aiPrompt.trim()) return;
+    // Attribute AI changes name, position and ratings, so it is never
+    // available in look-only mode.
+    if (!canEdit || lookOnly || !aiPrompt.trim()) return;
     setIsGenerating(true);
     try {
       const res = await fetch("/api/generate-card", {
@@ -393,6 +407,19 @@ export function PlayerForm({
       const cropped = await cropFacePortrait(source, 740, photoFrame);
       setPhoto(await compressImageToDataUrl(cropped, { maxDim: 640, quality: 0.82 }));
       setCardAiStatus(`${selected.length} reference image${selected.length === 1 ? "" : "s"} uploaded. The latest image is now on the live card.`);
+    } catch {
+      setCardAiStatus("That image could not be read. Try a PNG, JPG, or WEBP file.");
+    }
+  }
+
+  // Look-only mode has no Identity step, so the Image tab carries its own
+  // photo picker. Same crop-then-compress path as everywhere else.
+  async function replacePhoto(file: File | undefined) {
+    if (!canEdit || !file) return;
+    try {
+      setPhotoSource(file);
+      const cropped = await cropFacePortrait(file, 740, photoFrame);
+      setPhoto(await compressImageToDataUrl(cropped, { maxDim: 640, quality: 0.82 }));
     } catch {
       setCardAiStatus("That image could not be read. Try a PNG, JPG, or WEBP file.");
     }
@@ -532,6 +559,11 @@ export function PlayerForm({
   //      browser — it was never written to the database, so it looked
   //      "saved" but disappeared on next sign-in or on another device.
   //      This is the fix for that bug.
+  //
+  // In look-only mode every non-look field in the form is still exactly what
+  // was loaded from `existing` (those controls are never shown), so the
+  // payload only differs from the stored card in photo / cardDesign /
+  // cardStyle. The server is what actually guarantees that.
   async function save() {
     if (!canEdit || !currentUser || !name.trim()) return;
 
@@ -577,10 +609,12 @@ export function PlayerForm({
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <div>
           <div className="font-display text-xl tracking-wide">
-            {existing ? "Edit player card" : "Create player card"}
+            {lookOnly ? "Edit my card's look" : existing ? "Edit player card" : "Create player card"}
           </div>
           <div className="text-xs text-muted">
-            Step {step + 1} of 3 — {STEPS[step]}
+            {lookOnly
+              ? "Design and photo only"
+              : `Step ${step + 1} of 3 — ${STEPS[step]}`}
           </div>
         </div>
         <button onClick={onClose} className="text-sm text-muted hover:text-fg">
@@ -590,7 +624,7 @@ export function PlayerForm({
 
       <div className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto hq-scroll p-4 lg:grid-cols-[1fr_240px]">
         <div className="space-y-4">
-          {step === 0 && (
+          {step === 0 && !lookOnly && (
             <>
               <div className="flex items-center gap-3">
                 <button
@@ -824,7 +858,7 @@ export function PlayerForm({
             </>
           )}
 
-          {step === 1 && (
+          {step === 1 && !lookOnly && (
             <div className="space-y-4">
               <p className="text-xs text-muted">
                 Six-stat model. Overall is position-weighted — a centre-back is not a simple average of every number.
@@ -925,28 +959,30 @@ export function PlayerForm({
                     <div className="mt-3 text-xs leading-5 text-accent">{cardAiStatus}</div>
                   </div>
 
-                  <div className="rounded-[16px] border border-accent/30 bg-accent/5 p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-fg">
-                      <Sparkles className="size-4 text-accent" /> Generate attributes with AI
+                  {!lookOnly && (
+                    <div className="rounded-[16px] border border-accent/30 bg-accent/5 p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-fg">
+                        <Sparkles className="size-4 text-accent" /> Generate attributes with AI
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-muted">
+                        Describe the player and let AI fill in name, position, and the six-stat attributes.
+                      </p>
+                      <textarea
+                        value={aiPrompt}
+                        disabled={!canEdit}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        onKeyDown={(e) => {
+                          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") void handleCardAI();
+                        }}
+                        placeholder="Example: a pacey right winger, strong dribbler, weaker in the air"
+                        rows={4}
+                        className="mt-3 w-full rounded-[12px] border border-line bg-elevated px-3 py-2 text-sm text-fg placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      <Button className="mt-3 w-full" onClick={() => void handleCardAI()} disabled={!canEdit || isGenerating}>
+                        <Sparkles className="size-4" /> {isGenerating ? "Generating..." : "Generate attributes"}
+                      </Button>
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Describe the player and let AI fill in name, position, and the six-stat attributes.
-                    </p>
-                    <textarea
-                      value={aiPrompt}
-                      disabled={!canEdit}
-                      onChange={(e) => setAiPrompt(e.target.value)}
-                      onKeyDown={(e) => {
-                        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") void handleCardAI();
-                      }}
-                      placeholder="Example: a pacey right winger, strong dribbler, weaker in the air"
-                      rows={4}
-                      className="mt-3 w-full rounded-[12px] border border-line bg-elevated px-3 py-2 text-sm text-fg placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    <Button className="mt-3 w-full" onClick={() => void handleCardAI()} disabled={!canEdit || isGenerating}>
-                      <Sparkles className="size-4" /> {isGenerating ? "Generating..." : "Generate attributes"}
-                    </Button>
-                  </div>
+                  )}
 
                   <div className="rounded-[14px] border border-line bg-surface p-3">
                     <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Reference image</div>
@@ -1103,6 +1139,32 @@ export function PlayerForm({
 
               {pane === "image" && (
                 <div className="space-y-3">
+                  {lookOnly && (
+                    <div className="flex items-center gap-3 rounded-[12px] border border-line bg-surface p-3">
+                      <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-dashed border-line bg-elevated">
+                        {photo ? <img src={photo} alt="" className="size-full object-cover" /> : <Camera className="size-5 text-subtle" />}
+                      </div>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <label className="cursor-pointer rounded-full border border-line bg-elevated px-3 py-1.5 text-xs font-semibold text-fg">
+                          {photo ? "Change photo" : "Add photo"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              void replacePhoto(e.target.files?.[0]);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        {photo && (
+                          <button type="button" className="text-xs text-muted underline" onClick={() => setPhoto(null)}>
+                            Remove photo
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Portrait framing</div>
                     <div className="flex flex-wrap gap-2">
@@ -1310,30 +1372,34 @@ export function PlayerForm({
                     ))}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={presetName}
-                      disabled={!canEdit}
-                      onChange={(e) => setPresetName(e.target.value)}
-                      placeholder="Preset name"
-                      className="h-10 flex-1 rounded-[10px] border border-line bg-elevated px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    <Button
-                      disabled={!canEdit}
-                      onClick={() => {
-                        if (!presetName.trim()) return;
-                        savePreset(presetName.trim(), cardDesign, style);
-                        setPresetName("");
-                      }}
-                    >
-                      Save preset
-                    </Button>
-                  </div>
+                  {/* Saved presets are shared by the whole desk, so a player
+                      can apply them but not create, rename, copy or delete. */}
+                  {!lookOnly && (
+                    <div className="flex gap-2">
+                      <input
+                        value={presetName}
+                        disabled={!canEdit}
+                        onChange={(e) => setPresetName(e.target.value)}
+                        placeholder="Preset name"
+                        className="h-10 flex-1 rounded-[10px] border border-line bg-elevated px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      <Button
+                        disabled={!canEdit}
+                        onClick={() => {
+                          if (!presetName.trim()) return;
+                          savePreset(presetName.trim(), cardDesign, style);
+                          setPresetName("");
+                        }}
+                      >
+                        Save preset
+                      </Button>
+                    </div>
+                  )}
                   {presets.length === 0 && <p className="text-sm text-subtle">No saved presets yet.</p>}
                   <ul className="space-y-1.5">
                     {presets.map((pr) => (
                       <li key={pr.id} className="flex flex-wrap items-center gap-2 rounded-[10px] border border-line bg-elevated px-3 py-2">
-                        {renameId === pr.id ? (
+                        {renameId === pr.id && !lookOnly ? (
                           <input
                             defaultValue={pr.name}
                             className="h-8 flex-1 rounded border border-line bg-surface px-2 text-sm"
@@ -1352,15 +1418,19 @@ export function PlayerForm({
                         <button type="button" disabled={!canEdit} className="text-[11px] text-accent disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { setCardDesign(pr.cardDesign); setPhotoFrame(pr.style.photoFrame); pushStyle(mergeCardStyle(pr.style)); }}>
                           Apply
                         </button>
-                        <button type="button" disabled={!canEdit} className="text-[11px] text-muted disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setRenameId(pr.id)}>
-                          Rename
-                        </button>
-                        <button type="button" disabled={!canEdit} className="text-[11px] text-muted disabled:cursor-not-allowed disabled:opacity-50" onClick={() => duplicatePreset(pr.id)}>
-                          Duplicate
-                        </button>
-                        <button type="button" disabled={!canEdit} className="text-[11px] text-warn disabled:cursor-not-allowed disabled:opacity-50" onClick={() => removePreset(pr.id)}>
-                          Delete
-                        </button>
+                        {!lookOnly && (
+                          <>
+                            <button type="button" disabled={!canEdit} className="text-[11px] text-muted disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setRenameId(pr.id)}>
+                              Rename
+                            </button>
+                            <button type="button" disabled={!canEdit} className="text-[11px] text-muted disabled:cursor-not-allowed disabled:opacity-50" onClick={() => duplicatePreset(pr.id)}>
+                              Duplicate
+                            </button>
+                            <button type="button" disabled={!canEdit} className="text-[11px] text-warn disabled:cursor-not-allowed disabled:opacity-50" onClick={() => removePreset(pr.id)}>
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -1379,9 +1449,13 @@ export function PlayerForm({
       </div>
 
       <div className="flex items-center justify-between border-t border-line px-4 py-3">
-        <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
-          <ChevronLeft className="size-4" /> Back
-        </Button>
+        {lookOnly ? (
+          <div />
+        ) : (
+          <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+            <ChevronLeft className="size-4" /> Back
+          </Button>
+        )}
         {step < 2 ? (
           <Button onClick={() => setStep((s) => s + 1)} disabled={step === 0 && !name.trim()}>
             Next <ChevronRight className="size-4" />

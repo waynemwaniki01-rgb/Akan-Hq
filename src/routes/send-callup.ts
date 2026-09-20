@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import nodemailer from "nodemailer";
-import dotenv from "dotenv";
+import { sendEmail } from "@/lib/email";
+import { getCurrentUserAndRole } from "@/routes/me";
 
 type Recipient = {
   playerId: string;
@@ -21,27 +21,9 @@ type SendCallUpBody = {
   notSelected: Recipient[];
 };
 
-function ensureEnvLoaded() {
-  dotenv.config({ path: "scripts/.env" });
-}
-
-function getFromAddress() {
-  const user = process.env.GMAIL_USER;
-  return `Aga Khan Football Academy <${user}>`;
-}
-
-function getTransporter() {
-  ensureEnvLoaded();
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) {
-    throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD are not set — check scripts/.env");
-  }
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: { user, pass },
-  });
-}
+// NOTE: the "from" address is no longer set in this file. Every email now goes
+// out through src/lib/email.ts, which sends from the Gmail account set in
+// GMAIL_USER / GMAIL_APP_PASSWORD (Vercel settings, or scripts/.env locally).
 
 function initialsOf(name: string) {
   return name
@@ -352,62 +334,60 @@ async function sendOne(
   if (!r.email) {
     return { playerId: r.playerId, email: "", success: false, error: "No email on file" };
   }
-  try {
-    const transporter = getTransporter();
-    const from = getFromAddress();
-    const info = await transporter.sendMail({
-      from,
-      to: r.email,
-      subject: isCalled ? `⚽ You've been called up — ${callUpName}` : `Squad update — ${callUpName}`,
-      html: isCalled
-        ? calledUpEmail(r, callUpName, coachName, customNote)
-        : notSelectedEmail(r, callUpName, coachName, customNote),
-    });
 
-    console.log(`[send-callup] Sent to ${r.email} (id: ${info.messageId})`);
-    return { playerId: r.playerId, email: r.email, success: true };
-  } catch (err) {
-    console.error(`[send-callup] Failed to send to ${r.email}:`, err);
-    return {
-      playerId: r.playerId,
-      email: r.email,
-      success: false,
-      error: err instanceof Error ? err.message : "Send failed",
-    };
+  const result = await sendEmail({
+    to: r.email,
+    subject: isCalled ? `⚽ You've been called up — ${callUpName}` : `Squad update — ${callUpName}`,
+    html: isCalled
+      ? calledUpEmail(r, callUpName, coachName, customNote)
+      : notSelectedEmail(r, callUpName, coachName, customNote),
+  });
+
+  if (!result.ok) {
+    console.error(`[send-callup] Failed to send to ${r.email}:`, result.error);
+    return { playerId: r.playerId, email: r.email, success: false, error: result.error };
   }
+
+  console.log(`[send-callup] Sent to ${r.email}`);
+  return { playerId: r.playerId, email: r.email, success: true };
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 export const Route = createFileRoute("/send-callup")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        ensureEnvLoaded();
-
-        if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-          console.error("[send-callup] GMAIL_USER / GMAIL_APP_PASSWORD missing at request time — check scripts/.env");
-          return new Response(
-            JSON.stringify({ error: "Email service is not configured (Gmail credentials missing). Check scripts/.env." }),
-            { status: 500, headers: { "Content-Type": "application/json" } },
-          );
+        // Only signed-in owners / editors / coaches may send call-ups. Without
+        // this check, anyone who found this address could send email from the
+        // academy's Gmail account.
+        try {
+          const { userId, role } = await getCurrentUserAndRole();
+          if (!userId) return json({ error: "Please sign in to send call-ups." }, 401);
+          if (role !== "owner" && role !== "editor" && role !== "coach") {
+            return json({ error: "You don't have permission to send call-ups." }, 403);
+          }
+        } catch (err) {
+          console.error("[send-callup] permission check failed:", err);
+          return json({ error: "Could not check your permissions." }, 500);
         }
 
         let body: SendCallUpBody;
         try {
           body = (await request.json()) as SendCallUpBody;
         } catch {
-          return new Response(JSON.stringify({ error: "Invalid request body" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return json({ error: "Invalid request body" }, 400);
         }
 
         const { callUpName, coachName, called, notSelected, calledNote, notSelectedNote } = body;
 
         if (!callUpName || !Array.isArray(called) || !Array.isArray(notSelected)) {
-          return new Response(JSON.stringify({ error: "Missing required fields" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return json({ error: "Missing required fields" }, 400);
         }
 
         try {
@@ -416,16 +396,10 @@ export const Route = createFileRoute("/send-callup")({
             ...notSelected.map((r) => sendOne(r, false, callUpName, coachName, notSelectedNote ?? null)),
           ]);
 
-          return new Response(JSON.stringify({ results }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return json({ results });
         } catch (err) {
           console.error("[send-callup] Unexpected failure:", err);
-          return new Response(
-            JSON.stringify({ error: err instanceof Error ? err.message : "Unexpected server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } },
-          );
+          return json({ error: err instanceof Error ? err.message : "Unexpected server error" }, 500);
         }
       },
     },

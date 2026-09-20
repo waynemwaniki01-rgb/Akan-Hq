@@ -14,11 +14,19 @@ import {
   type Player,
 } from "@/lib/pitch/types";
 import { usePitchStore } from "@/lib/pitch/store";
+import { canEditOwnLook, canEditRoster, useRole } from "@/lib/auth/use-role";
 
 export function PlayerProfile({ player, onClose }: { player: Player; onClose: () => void }) {
   const matches = usePitchStore((s) => s.matches);
   const adjustAttribute = usePitchStore((s) => s.adjustAttribute);
   const removePlayer = usePitchStore((s) => s.removePlayer);
+  // Signed-out visitors and pending users get role "pending", so canEdit is
+  // false for them and every edit control below stays hidden. An approved
+  // player can also change the LOOK (design + photo) of their own card, and
+  // nothing else — see canEditLook below.
+  const { role, playerId } = useRole();
+  const canEdit = canEditRoster(role);
+  const canEditLook = !canEdit && canEditOwnLook(role, playerId, player.id);
   const d = derivePlayer(player, matches);
   const [edit, setEdit] = useState(false);
   const [adjKey, setAdjKey] = useState<string | null>(null);
@@ -26,10 +34,11 @@ export function PlayerProfile({ player, onClose }: { player: Player; onClose: ()
   const [reason, setReason] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
 
-  if (edit) {
+  if (edit && (canEdit || canEditLook)) {
     return (
       <PlayerForm
         existing={player}
+        appearanceOnly={!canEdit}
         onClose={() => setEdit(false)}
         onCreated={() => setEdit(false)}
       />
@@ -79,7 +88,16 @@ export function PlayerProfile({ player, onClose }: { player: Player; onClose: ()
                   const label = gk ? GK_LABELS[k as keyof typeof GK_LABELS] : SIX_LABELS[k as keyof typeof SIX_LABELS];
                   const current = gk ? player.gkCurrent![k as keyof typeof player.gkCurrent] : player.currentSix[k as keyof typeof player.currentSix];
                   const base = gk ? player.gkBase![k as keyof typeof player.gkBase] : player.baseSix[k as keyof typeof player.baseSix];
-                  return (
+                  const tile = (
+                    <>
+                      <div className="text-[10px] uppercase text-muted">{label}</div>
+                      <div className="font-display text-2xl tabular-nums">{current}</div>
+                      <div className="text-[10px] text-subtle">base {base}</div>
+                    </>
+                  );
+                  // Only people who can edit get a clickable tile (it opens the
+                  // manual-adjustment panel). Everyone else just sees the numbers.
+                  return canEdit ? (
                     <button
                       key={k}
                       type="button"
@@ -90,16 +108,18 @@ export function PlayerProfile({ player, onClose }: { player: Player; onClose: ()
                       }}
                       className="rounded-[12px] border border-line bg-elevated p-2.5 text-left"
                     >
-                      <div className="text-[10px] uppercase text-muted">{label}</div>
-                      <div className="font-display text-2xl tabular-nums">{current}</div>
-                      <div className="text-[10px] text-subtle">base {base}</div>
+                      {tile}
                     </button>
+                  ) : (
+                    <div key={k} className="rounded-[12px] border border-line bg-elevated p-2.5 text-left">
+                      {tile}
+                    </div>
                   );
                 })}
               </div>
             </section>
 
-            {adjKey && (
+            {canEdit && adjKey && (
               <div className="rounded-[14px] border border-accent/40 bg-accent/5 p-3">
                 <div className="mb-2 text-sm font-semibold">Manual adjustment — {adjKey.toUpperCase()}</div>
                 <input
@@ -215,29 +235,38 @@ export function PlayerProfile({ player, onClose }: { player: Player; onClose: ()
               </section>
             )}
 
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => setEdit(true)}>Edit card</Button>
-              {confirmDel ? (
-                <>
-                  <Button
-                    variant="danger"
-                    onClick={() => {
-                      removePlayer(player.id);
-                      onClose();
-                    }}
-                  >
-                    Confirm delete
+            {canEdit && (
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setEdit(true)}>Edit card</Button>
+                {confirmDel ? (
+                  <>
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        removePlayer(player.id);
+                        onClose();
+                      }}
+                    >
+                      Confirm delete
+                    </Button>
+                    <Button variant="ghost" onClick={() => setConfirmDel(false)}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="danger" onClick={() => setConfirmDel(true)}>
+                    Remove from squad
                   </Button>
-                  <Button variant="ghost" onClick={() => setConfirmDel(false)}>
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <Button variant="danger" onClick={() => setConfirmDel(true)}>
-                  Remove from squad
-                </Button>
-              )}
-            </div>
+                )}
+              </div>
+            )}
+
+            {/* An approved player, looking at their own card only. */}
+            {canEditLook && (
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setEdit(true)}>Edit my card&apos;s look</Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

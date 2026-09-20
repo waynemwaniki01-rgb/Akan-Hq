@@ -16,6 +16,7 @@ import {
 } from "@/lib/pitch/card-system";
 import { cn, cropFacePortrait } from "@/lib/utils";
 import { compressImageToDataUrl } from "@/lib/pitch/image";
+import { canEditRoster, useRole } from "@/lib/auth/use-role";
 
 const ROLES: CoachRole[] = ["Head Coach", "Assistant Coach", "Goalkeeping Coach", "Fitness Coach", "Scout"];
 
@@ -689,6 +690,10 @@ export function CoachesView({ players }: { players: Player[] }) {
   const coaches = usePitchStore((s) => s.coaches);
   const callUps = usePitchStore((s) => s.callUps);
   const removeCoach = usePitchStore((s) => s.removeCoach);
+  // Viewers (signed out, pending, or approved players) can look at the coach
+  // cards but get no way to add, edit, delete or build call-ups.
+  const { role } = useRole();
+  const canManage = canEditRoster(role);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Coach | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Coach | null>(null);
@@ -699,50 +704,62 @@ export function CoachesView({ players }: { players: Player[] }) {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl tracking-wide">Coaches</h2>
-          <p className="text-xs text-muted">Manage staff profiles and build match call-ups.</p>
+          <p className="text-xs text-muted">
+            {canManage ? "Manage staff profiles and build match call-ups." : "Meet the coaching staff."}
+          </p>
         </div>
-        <Button onClick={() => setCreating(true)}>
-          <Plus className="size-4" /> Add coach
-        </Button>
+        {canManage && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="size-4" /> Add coach
+          </Button>
+        )}
       </div>
 
       {coaches.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-[16px] border border-dashed border-line bg-surface px-6 py-16 text-center">
           <Users className="mb-3 size-8 text-subtle" />
           <div className="font-display text-2xl tracking-wide">No coaches yet</div>
-          <p className="mt-2 max-w-sm text-sm text-muted">Add a coach profile to start building match call-ups.</p>
-          <Button className="mt-6" onClick={() => setCreating(true)}>
-            <Plus className="size-4" /> Add coach
-          </Button>
+          <p className="mt-2 max-w-sm text-sm text-muted">
+            {canManage
+              ? "Add a coach profile to start building match call-ups."
+              : "No coach profiles have been added yet."}
+          </p>
+          {canManage && (
+            <Button className="mt-6" onClick={() => setCreating(true)}>
+              <Plus className="size-4" /> Add coach
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-10 pt-4 sm:grid-cols-3 lg:grid-cols-4">
           {coaches.map((c) => (
             <div key={c.id} className="group relative flex flex-col items-center">
               <CoachCard coach={c} size="full" />
-              <div className="mt-2 flex flex-wrap justify-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setCallingUp(c)}
-                  className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent"
-                >
-                  New call-up
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditing(c)}
-                  className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(c)}
-                  className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-warn hover:bg-warn/10"
-                >
-                  Delete
-                </button>
-              </div>
+              {canManage && (
+                <div className="mt-2 flex flex-wrap justify-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCallingUp(c)}
+                    className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent"
+                  >
+                    New call-up
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(c)}
+                    className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(c)}
+                    className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-warn hover:bg-warn/10"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -770,39 +787,43 @@ export function CoachesView({ players }: { players: Player[] }) {
         </div>
       )}
 
-      <Modal open={creating} onClose={() => setCreating(false)} wide>
-        <CoachForm onClose={() => setCreating(false)} />
-      </Modal>
-      <Modal open={!!editing} onClose={() => setEditing(null)} wide>
-        {editing && <CoachForm existing={editing} onClose={() => setEditing(null)} />}
-      </Modal>
-      <Modal open={!!callingUp} onClose={() => setCallingUp(null)} wide>
-        {callingUp && <CallUpBuilder coach={callingUp} players={players} onClose={() => setCallingUp(null)} />}
-      </Modal>
-      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
-        {confirmDelete && (
-          <div className="p-5">
-            <div className="font-display text-xl">Delete coach?</div>
-            <p className="mt-2 text-sm text-muted">
-              Remove <strong className="text-fg">{confirmDelete.name}</strong> and their call-up history. This cannot be undone.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setConfirmDelete(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  removeCoach(confirmDelete.id);
-                  setConfirmDelete(null);
-                }}
-              >
-                <Trash2 className="size-4" /> Delete
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {canManage && (
+        <>
+          <Modal open={creating} onClose={() => setCreating(false)} wide>
+            <CoachForm onClose={() => setCreating(false)} />
+          </Modal>
+          <Modal open={!!editing} onClose={() => setEditing(null)} wide>
+            {editing && <CoachForm existing={editing} onClose={() => setEditing(null)} />}
+          </Modal>
+          <Modal open={!!callingUp} onClose={() => setCallingUp(null)} wide>
+            {callingUp && <CallUpBuilder coach={callingUp} players={players} onClose={() => setCallingUp(null)} />}
+          </Modal>
+          <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+            {confirmDelete && (
+              <div className="p-5">
+                <div className="font-display text-xl">Delete coach?</div>
+                <p className="mt-2 text-sm text-muted">
+                  Remove <strong className="text-fg">{confirmDelete.name}</strong> and their call-up history. This cannot be undone.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setConfirmDelete(null)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      removeCoach(confirmDelete.id);
+                      setConfirmDelete(null);
+                    }}
+                  >
+                    <Trash2 className="size-4" /> Delete
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Modal>
+        </>
+      )}
     </div>
   );
 }

@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccessRouteImport } from './routes/access'
+import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as AskCoachRouteImport } from './routes/ask-coach'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as MeRouteImport } from './routes/me'
@@ -20,6 +22,16 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccessRoute = AccessRouteImport.update({
+  id: '/access',
+  path: '/access',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalsRoute = ApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AskCoachRoute = AskCoachRouteImport.update({
@@ -55,6 +67,8 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
+  '/approvals': typeof ApprovalsRoute
   '/ask-coach': typeof AskCoachRoute
   '/desk': typeof DeskRoute
   '/me': typeof MeRoute
@@ -64,6 +78,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
+  '/approvals': typeof ApprovalsRoute
   '/ask-coach': typeof AskCoachRoute
   '/desk': typeof DeskRoute
   '/me': typeof MeRoute
@@ -74,6 +90,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
+  '/approvals': typeof ApprovalsRoute
   '/ask-coach': typeof AskCoachRoute
   '/desk': typeof DeskRoute
   '/me': typeof MeRoute
@@ -85,6 +103,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/access'
+    | '/approvals'
     | '/ask-coach'
     | '/desk'
     | '/me'
@@ -94,6 +114,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/access'
+    | '/approvals'
     | '/ask-coach'
     | '/desk'
     | '/me'
@@ -103,6 +125,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/access'
+    | '/approvals'
     | '/ask-coach'
     | '/desk'
     | '/me'
@@ -113,6 +137,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccessRoute: typeof AccessRoute
+  ApprovalsRoute: typeof ApprovalsRoute
   AskCoachRoute: typeof AskCoachRoute
   DeskRoute: typeof DeskRoute
   MeRoute: typeof MeRoute
@@ -128,6 +154,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/access': {
+      id: '/access'
+      path: '/access'
+      fullPath: '/access'
+      preLoaderRoute: typeof AccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approvals': {
+      id: '/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof ApprovalsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ask-coach': {
@@ -177,6 +217,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccessRoute: AccessRoute,
+  ApprovalsRoute: ApprovalsRoute,
   AskCoachRoute: AskCoachRoute,
   DeskRoute: DeskRoute,
   MeRoute: MeRoute,

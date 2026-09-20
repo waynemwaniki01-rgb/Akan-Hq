@@ -19,6 +19,7 @@ import { usePitchStore } from "@/lib/pitch/store";
 import type { Match, Player, PositionCode } from "@/lib/pitch/types";
 import { POSITIONS } from "@/lib/pitch/types";
 import { resolveAcademyQuery } from "@/lib/pitch/academy-assistant";
+import { canEditRoster, useRole } from "@/lib/auth/use-role";
 
 function matchDateTime(m: Match) {
   return new Date(`${m.date}T${m.kickoff || "13:30"}:00`);
@@ -258,7 +259,7 @@ export function HomeView({ players, onOpenPlayer }: { players: Player[]; onOpenP
         <div className="space-y-2">
           {ranked.length === 0 && (
             <div className="rounded-[14px] border border-dashed border-line p-4 text-sm text-muted">
-              No player cards yet. Create one in My Cards.
+              No player cards yet.
             </div>
           )}
           {ranked.slice(0, 5).map(({ p, d }, i) => (
@@ -298,6 +299,10 @@ export function PlayersView({
   const removePlayer = usePitchStore((s) => s.removePlayer);
   const duplicatePlayer = usePitchStore((s) => s.duplicatePlayer);
   const updatePlayer = usePitchStore((s) => s.updatePlayer);
+  // Signed-out visitors (and pending/player roles) get canEdit = false, so
+  // create / edit / duplicate / rename / delete are all hidden for them.
+  const { role } = useRole();
+  const canEdit = canEditRoster(role);
   const [q, setQ] = useState("");
   const [pos, setPos] = useState<"ALL" | PositionCode>("ALL");
   const [sort, setSort] = useState<"ovr" | "form" | "pac" | "def" | "pas" | "name">("ovr");
@@ -333,12 +338,16 @@ export function PlayersView({
         <div>
           <h2 className="font-display text-2xl tracking-wide">My Cards</h2>
           <p className="text-xs text-muted">
-            Only cards you create and save appear here. Nothing is generated automatically.
+            {canEdit
+              ? "Only cards you create and save appear here. Nothing is generated automatically."
+              : "Tap a card to see the full player profile."}
           </p>
         </div>
-        <Button onClick={() => setCreating(true)}>
-          <Plus className="size-4" /> Create player card
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="size-4" /> Create player card
+          </Button>
+        )}
       </div>
 
       {!isEmpty && (
@@ -382,12 +391,18 @@ export function PlayersView({
       {isEmpty ? (
         <div className="flex flex-col items-center justify-center rounded-[16px] border border-dashed border-line bg-surface px-6 py-16 text-center">
           <div className="font-display text-2xl tracking-wide">No player cards yet</div>
-          <p className="mt-2 max-w-sm text-sm text-muted">
-            Create your first player card. Design the chassis, set attributes, then press SAVE CARD.
-          </p>
-          <Button className="mt-6" onClick={() => setCreating(true)}>
-            <Plus className="size-4" /> Create player card
-          </Button>
+          {canEdit ? (
+            <>
+              <p className="mt-2 max-w-sm text-sm text-muted">
+                Create your first player card. Design the chassis, set attributes, then press SAVE CARD.
+              </p>
+              <Button className="mt-6" onClick={() => setCreating(true)}>
+                <Plus className="size-4" /> Create player card
+              </Button>
+            </>
+          ) : (
+            <p className="mt-2 max-w-sm text-sm text-muted">Player cards will appear here once the coaches add them.</p>
+          )}
         </div>
       ) : (
         <>
@@ -395,39 +410,41 @@ export function PlayersView({
             {list.map(({ p }) => (
               <div key={p.id} className="group relative flex flex-col items-center">
                 <PlayerCard player={p} matches={matches} size="full" onClick={() => onOpenPlayer(p)} />
-                <div className="mt-2 flex flex-wrap justify-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(p)}
-                    className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => duplicatePlayer(p.id)}
-                    className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
-                  >
-                    Duplicate
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRename(p);
-                      setRenameVal(p.name);
-                    }}
-                    className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete(p)}
-                    className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-warn hover:bg-warn/10"
-                  >
-                    Delete
-                  </button>
-                </div>
+                {canEdit && (
+                  <div className="mt-2 flex flex-wrap justify-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditing(p)}
+                      className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => duplicatePlayer(p.id)}
+                      className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRename(p);
+                        setRenameVal(p.name);
+                      }}
+                      className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-fg"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(p)}
+                      className="rounded-full border border-line bg-elevated px-2.5 py-1 text-[11px] font-semibold text-warn hover:bg-warn/10"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -439,18 +456,18 @@ export function PlayersView({
         </>
       )}
 
-      <Modal open={creating} onClose={() => setCreating(false)} wide>
+      <Modal open={canEdit && creating} onClose={() => setCreating(false)} wide>
         <PlayerForm
           onClose={() => setCreating(false)}
           onCreated={() => setCreating(false)}
         />
       </Modal>
-      <Modal open={!!editing} onClose={() => setEditing(null)} wide>
+      <Modal open={canEdit && !!editing} onClose={() => setEditing(null)} wide>
         {editing && (
           <PlayerForm existing={editing} onClose={() => setEditing(null)} onCreated={() => setEditing(null)} />
         )}
       </Modal>
-      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+      <Modal open={canEdit && !!confirmDelete} onClose={() => setConfirmDelete(null)}>
         {confirmDelete && (
           <div className="p-5">
             <div className="font-display text-xl">Delete card?</div>
@@ -474,7 +491,7 @@ export function PlayersView({
           </div>
         )}
       </Modal>
-      <Modal open={!!rename} onClose={() => setRename(null)}>
+      <Modal open={canEdit && !!rename} onClose={() => setRename(null)}>
         {rename && (
           <div className="p-5">
             <div className="font-display text-xl">Rename card</div>
@@ -509,6 +526,8 @@ export function TrainingView({ players }: { players: Player[] }) {
   const addTraining = usePitchStore((s) => s.addTraining);
   const removeTraining = usePitchStore((s) => s.removeTraining);
   const toggleAttendance = usePitchStore((s) => s.toggleAttendance);
+  const { role } = useRole();
+  const canEdit = canEditRoster(role);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [title, setTitle] = useState("Training");
   const [open, setOpen] = useState<string | null>(null);
@@ -516,37 +535,41 @@ export function TrainingView({ players }: { players: Player[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2 rounded-[14px] border border-line bg-surface p-3">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm"
-        />
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="h-10 min-w-[140px] flex-1 rounded-[10px] border border-line bg-elevated px-3 text-sm"
-        />
-        <Button
-          onClick={() => {
-            addTraining(date, title);
-            setTitle("Training");
-          }}
-        >
-          <Plus className="size-4" /> Log session
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex flex-wrap gap-2 rounded-[14px] border border-line bg-surface p-3">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm"
+          />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="h-10 min-w-[140px] flex-1 rounded-[10px] border border-line bg-elevated px-3 text-sm"
+          />
+          <Button
+            onClick={() => {
+              addTraining(date, title);
+              setTitle("Training");
+            }}
+          >
+            <Plus className="size-4" /> Log session
+          </Button>
+        </div>
+      )}
+      {list.length === 0 && !canEdit && (
+        <div className="rounded-[14px] border border-dashed border-line p-8 text-center text-sm text-muted">
+          No training sessions logged yet.
+        </div>
+      )}
       {list.map((t) => {
         const present = players.filter((p) => t.attendance?.[p.id]).length;
         return (
           <div key={t.id} className="rounded-[14px] border border-line bg-surface">
-            {/* FIX: this was a <button> wrapping a nested delete <button>, which is
-                invalid HTML (button-in-button) and was the source of the
-                "cannot be a descendant of <button>" hydration warning, and a
-                likely contributor to misfired clicks elsewhere. Now a <div>
-                with role="button" + keyboard handling, so it's still fully
-                accessible but no longer illegally nests a real button. */}
+            {/* This row is a <div role="button"> instead of a <button> because it
+                contains a nested delete <button>, and a button inside a button is
+                invalid HTML. */}
             <div
               role="button"
               tabIndex={0}
@@ -565,16 +588,18 @@ export function TrainingView({ players }: { players: Player[] }) {
                   {formatDateLong(t.date)} · {present}/{players.length} present
                 </div>
               </div>
-              <button
-                type="button"
-                className="text-subtle hover:text-warn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeTraining(t.id);
-                }}
-              >
-                <Trash2 className="size-4" />
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  className="text-subtle hover:text-warn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeTraining(t.id);
+                  }}
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              )}
             </div>
             {open === t.id && (
               <div className="grid grid-cols-1 gap-1 border-t border-line p-2 sm:grid-cols-2">
@@ -583,8 +608,14 @@ export function TrainingView({ players }: { players: Player[] }) {
                   return (
                     <button
                       key={p.id}
+                      type="button"
+                      disabled={!canEdit}
                       onClick={() => toggleAttendance(t.id, p.id)}
-                      className="flex items-center gap-2 rounded-[10px] px-2 py-1.5 text-left hover:bg-elevated"
+                      className={
+                        canEdit
+                          ? "flex items-center gap-2 rounded-[10px] px-2 py-1.5 text-left hover:bg-elevated"
+                          : "flex cursor-default items-center gap-2 rounded-[10px] px-2 py-1.5 text-left"
+                      }
                     >
                       <span
                         className={
@@ -622,6 +653,8 @@ export function MatchesView({
   const addMatch = usePitchStore((s) => s.addMatch);
   const removeMatch = usePitchStore((s) => s.removeMatch);
   const updateMatch = usePitchStore((s) => s.updateMatch);
+  const { role } = useRole();
+  const canEdit = canEditRoster(role);
   const [open, setOpen] = useState<string | null>(null);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [opponent, setOpponent] = useState("");
@@ -633,29 +666,36 @@ export function MatchesView({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2 rounded-[14px] border border-line bg-surface p-3">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm" />
-        <input value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Opponent" className="h-10 min-w-[120px] flex-1 rounded-[10px] border border-line bg-elevated px-3 text-sm" />
-        <select value={venue} onChange={(e) => setVenue(e.target.value as "Home" | "Away")} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm">
-          <option>Home</option>
-          <option>Away</option>
-        </select>
-        <input type="time" value={kickoff} onChange={(e) => setKickoff(e.target.value)} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm" />
-        <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm">
-          <option>League</option>
-          <option>Tournament</option>
-          <option>Friendly</option>
-        </select>
-        <Button
-          onClick={() => {
-            if (!opponent.trim()) return;
-            addMatch({ date, opponent: opponent.trim(), venue, kickoff, kind });
-            setOpponent("");
-          }}
-        >
-          <Plus className="size-4" /> Add fixture
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex flex-wrap gap-2 rounded-[14px] border border-line bg-surface p-3">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm" />
+          <input value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Opponent" className="h-10 min-w-[120px] flex-1 rounded-[10px] border border-line bg-elevated px-3 text-sm" />
+          <select value={venue} onChange={(e) => setVenue(e.target.value as "Home" | "Away")} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm">
+            <option>Home</option>
+            <option>Away</option>
+          </select>
+          <input type="time" value={kickoff} onChange={(e) => setKickoff(e.target.value)} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm" />
+          <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} className="h-10 rounded-[10px] border border-line bg-elevated px-2 text-sm">
+            <option>League</option>
+            <option>Tournament</option>
+            <option>Friendly</option>
+          </select>
+          <Button
+            onClick={() => {
+              if (!opponent.trim()) return;
+              addMatch({ date, opponent: opponent.trim(), venue, kickoff, kind });
+              setOpponent("");
+            }}
+          >
+            <Plus className="size-4" /> Add fixture
+          </Button>
+        </div>
+      )}
+      {list.length === 0 && !canEdit && (
+        <div className="rounded-[14px] border border-dashed border-line p-8 text-center text-sm text-muted">
+          No fixtures added yet.
+        </div>
+      )}
       {list.map((m) => (
         <div key={m.id} className="rounded-[14px] border border-line bg-surface">
           <div
@@ -682,18 +722,78 @@ export function MatchesView({
                 {m.teamScore !== null && m.opponentScore !== null ? ` · ${m.teamScore}–${m.opponentScore}` : ""}
               </div>
             </div>
-            <button
-              type="button"
-              className="text-subtle hover:text-warn"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeMatch(m.id);
-              }}
-            >
-              <Trash2 className="size-4" />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                className="text-subtle hover:text-warn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeMatch(m.id);
+                }}
+              >
+                <Trash2 className="size-4" />
+              </button>
+            )}
           </div>
-          {open === m.id && (
+
+          {/* READ-ONLY panel: what signed-out visitors (and anyone who can't edit) see. */}
+          {open === m.id && !canEdit && (
+            <div className="space-y-3 border-t border-line p-3">
+              <div className="rounded-[12px] border border-line bg-[#0f1714] p-3">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted">Result & MVP</div>
+                <div className="text-sm">
+                  Score:{" "}
+                  {m.teamScore != null && m.opponentScore != null
+                    ? `${m.teamScore}–${m.opponentScore}`
+                    : "Not recorded yet"}
+                </div>
+                <div className="mt-1 text-sm text-muted">
+                  MVP: {players.find((p) => p.id === m.motm)?.name ?? "None selected"}
+                </div>
+              </div>
+
+              {Object.entries(m.goals ?? {}).length > 0 && (
+                <div className="rounded-[12px] border border-line bg-[#0f1714] p-3">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted">Goal scorers</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(m.goals ?? {}).map(([id, count]) => {
+                      const player = players.find((p) => p.id === id);
+                      if (!player) return null;
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center gap-2 rounded-full border border-accent/40 bg-accent/5 px-2.5 py-1.5 text-xs font-medium text-[#dfece2]"
+                        >
+                          <span>{player.name}</span>
+                          <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {players.some((p) => m.ratings?.[p.id] !== undefined) && (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted">Match ratings</div>
+                  {players
+                    .filter((p) => m.ratings?.[p.id] !== undefined)
+                    .map((p) => (
+                      <div key={p.id} className="flex items-center gap-3 rounded-[10px] px-1 py-1 text-sm">
+                        <button onClick={() => onOpenPlayer(p)} className="w-28 truncate text-left">
+                          {p.name}
+                        </button>
+                        <span className="tabular-nums text-accent">{m.ratings?.[p.id]}</span>
+                        {m.motm === p.id && <span className="text-xs font-semibold text-accent">MVP</span>}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* EDITABLE panel: only for owner / editor / coach. */}
+          {open === m.id && canEdit && (
             <div className="space-y-3 border-t border-line p-3">
               <div className="rounded-[12px] border border-line bg-[#0f1714] p-3">
                 <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-muted">Result & MVP</div>
@@ -909,6 +1009,8 @@ export function LegacyCabinetView() {
   const category = usePitchStore((s) => s.category);
   const addTrophy = usePitchStore((s) => s.addTrophy);
   const removeTrophy = usePitchStore((s) => s.removeTrophy);
+  const { role } = useRole();
+  const canEdit = canEditRoster(role);
 
   const [name, setName] = useState("Aga Khan U15 League Cup");
   const [competition, setCompetition] = useState("National League");
@@ -1014,65 +1116,69 @@ export function LegacyCabinetView() {
         )}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[420px_1fr]">
-        <div className="rounded-[18px] border border-line bg-surface p-4">
-          <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted">Add a trophy</div>
-          <div className="space-y-3">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Trophy name"
-              className="h-10 w-full rounded-[10px] border border-line bg-elevated px-3 text-sm text-fg placeholder:text-subtle"
-            />
-            <input
-              value={competition}
-              onChange={(e) => setCompetition(e.target.value)}
-              placeholder="Competition"
-              className="h-10 w-full rounded-[10px] border border-line bg-elevated px-3 text-sm text-fg placeholder:text-subtle"
-            />
-            <input
-              value={season}
-              onChange={(e) => setSeason(e.target.value)}
-              placeholder="Season"
-              className="h-10 w-full rounded-[10px] border border-line bg-elevated px-3 text-sm text-fg placeholder:text-subtle"
-            />
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Write a short memory of the achievement"
-              rows={4}
-              className="w-full rounded-[10px] border border-line bg-elevated px-3 py-2 text-sm text-fg placeholder:text-subtle"
-            />
-
-            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[10px] border border-dashed border-line bg-[#0f1714] px-3 py-2 text-sm text-muted">
-              <span>{photo ? "Replace photo" : "Upload trophy photo"}</span>
+      <section className={canEdit ? "grid gap-4 lg:grid-cols-[420px_1fr]" : "grid gap-4"}>
+        {canEdit && (
+          <div className="rounded-[18px] border border-line bg-surface p-4">
+            <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-muted">Add a trophy</div>
+            <div className="space-y-3">
               <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => handlePhoto(e.target.files?.[0] ?? null)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Trophy name"
+                className="h-10 w-full rounded-[10px] border border-line bg-elevated px-3 text-sm text-fg placeholder:text-subtle"
               />
-              <span className="rounded-full border border-line px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-accent">
-                Upload
-              </span>
-            </label>
+              <input
+                value={competition}
+                onChange={(e) => setCompetition(e.target.value)}
+                placeholder="Competition"
+                className="h-10 w-full rounded-[10px] border border-line bg-elevated px-3 text-sm text-fg placeholder:text-subtle"
+              />
+              <input
+                value={season}
+                onChange={(e) => setSeason(e.target.value)}
+                placeholder="Season"
+                className="h-10 w-full rounded-[10px] border border-line bg-elevated px-3 text-sm text-fg placeholder:text-subtle"
+              />
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Write a short memory of the achievement"
+                rows={4}
+                className="w-full rounded-[10px] border border-line bg-elevated px-3 py-2 text-sm text-fg placeholder:text-subtle"
+              />
 
-            {photo && (
-              <div className="overflow-hidden rounded-[12px] border border-line bg-[#0c120f]">
-                <img src={photo} alt="Trophy preview" className="h-32 w-full object-cover" />
-              </div>
-            )}
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[10px] border border-dashed border-line bg-[#0f1714] px-3 py-2 text-sm text-muted">
+                <span>{photo ? "Replace photo" : "Upload trophy photo"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handlePhoto(e.target.files?.[0] ?? null)}
+                />
+                <span className="rounded-full border border-line px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-accent">
+                  Upload
+                </span>
+              </label>
 
-            <Button onClick={submitTrophy} className="w-full">
-              <Plus className="size-4" /> Add to cabinet
-            </Button>
+              {photo && (
+                <div className="overflow-hidden rounded-[12px] border border-line bg-[#0c120f]">
+                  <img src={photo} alt="Trophy preview" className="h-32 w-full object-cover" />
+                </div>
+              )}
+
+              <Button onClick={submitTrophy} className="w-full">
+                <Plus className="size-4" /> Add to cabinet
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="space-y-3">
           {trophies.length === 0 ? (
             <div className="rounded-[18px] border border-dashed border-line bg-surface p-8 text-center text-sm text-muted">
-              No trophies yet. Add your first academy highlight to begin the legacy cabinet.
+              {canEdit
+                ? "No trophies yet. Add your first academy highlight to begin the legacy cabinet."
+                : "No trophies have been added to the cabinet yet."}
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1087,14 +1193,16 @@ export function LegacyCabinetView() {
                       <div className="rounded-full border border-[#d4b66a]/30 bg-[#1a170f] px-2 py-1 text-[9px] uppercase tracking-[0.16em] text-[#f0d79a]">
                         {trophy.season}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeTrophy(trophy.id)}
-                        className="rounded-full border border-line p-1.5 text-subtle hover:text-warn"
-                        aria-label={`Remove ${trophy.name}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => removeTrophy(trophy.id)}
+                          className="rounded-full border border-line p-1.5 text-subtle hover:text-warn"
+                          aria-label={`Remove ${trophy.name}`}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="mb-3 flex h-28 items-center justify-center rounded-[14px] border border-line bg-[radial-gradient(circle_at_top,#212f2c,#0d1513_58%)]">
