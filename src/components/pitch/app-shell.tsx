@@ -46,6 +46,7 @@ export function AppShell() {
   const category = usePitchStore((s) => s.category);
   const setCategory = usePitchStore((s) => s.setCategory);
   const playersAll = usePitchStore((s) => s.players);
+  const coachesAll = usePitchStore((s) => s.coaches);
   const selectedId = usePitchStore((s) => s.selectedPlayerId);
   const setSelectedPlayer = usePitchStore((s) => s.setSelectedPlayer);
   const reducedMotion = usePitchStore((s) => s.reducedMotion);
@@ -57,6 +58,9 @@ export function AppShell() {
   const canEdit = canEditRoster(role);
   const [pickSlot, setPickSlot] = useState<PitchSlot | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
+  // Dismissible banner state — separate from syncState so a user can close
+  // a stale error without it reappearing until the next real sync event.
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const saveDesk = () => {
     void saveToServer();
@@ -75,7 +79,9 @@ export function AppShell() {
   // The local copy still renders immediately above — this just refreshes it.
   useEffect(() => {
     if (!loaded) return;
+    setBannerDismissed(false);
     void usePitchStore.getState().loadFromServer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
   useEffect(() => {
@@ -102,12 +108,48 @@ export function AppShell() {
     );
   }
 
+  // Visible whenever a server load/save is in flight or has just failed —
+  // this used to be silent (only visible via DevTools Network tab), which
+  // made it look like data had vanished when really the fetch just never
+  // happened or errored out.
+  const showBanner = !bannerDismissed && (syncState === "loading" || syncState === "saving" || syncState === "error");
+
   return (
     <>
       {/* Squad view is public — anyone with the link can look at cards, the
           roster, matches, etc. without signing in. Sign-in is only needed to
           edit, and that control lives in the header below (SignInPanel). */}
       <div className="min-h-screen bg-bg text-fg">
+          {showBanner && (
+            <div
+              className={cn(
+                "px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.1em]",
+                syncState === "error" ? "bg-red-900/80 text-red-100" : "bg-accent/20 text-accent",
+              )}
+            >
+              {syncState === "loading" && "Loading your saved data from the server…"}
+              {syncState === "saving" && "Saving to the server…"}
+              {syncState === "error" && (
+                <span className="flex items-center justify-center gap-3">
+                  Sync failed: {syncError ?? "unknown error"}
+                  <button
+                    type="button"
+                    className="rounded-full border border-current px-2 py-0.5 normal-case tracking-normal"
+                    onClick={() => void usePitchStore.getState().loadFromServer()}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full border border-current px-2 py-0.5 normal-case tracking-normal"
+                    onClick={() => setBannerDismissed(true)}
+                  >
+                    Dismiss
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
           <header className="border-b border-line bg-surface/90">
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-3">
