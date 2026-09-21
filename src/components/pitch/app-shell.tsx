@@ -24,14 +24,21 @@ import { usePitchStore } from "@/lib/pitch/store";
 import { rankFormations, slotMapFromEval } from "@/lib/pitch/ai";
 import { cn } from "@/lib/utils";
 
+/**
+ * The academy logo. The file lives at public/logo.png and is served from /logo.png.
+ * The logo already contains the words "AGA KHAN" and "SQUAD HUB", so it is shown
+ * on its own (no extra text beside it). It has a solid black background, so it is
+ * shown as a rounded badge with a thin light edge rather than cropped to a circle
+ * (a circle would cut into the curved text).
+ */
 function Crest({ size = 42 }: { size?: number }) {
   return (
     <img
-      src="/akan-hq-logo.svg"
-      alt="AGA KHAN ACADEMY crest"
+      src="/logo.png"
+      alt="Aga Khan Squad Hub logo"
       width={size}
       height={size}
-      className="block rounded-full object-contain shadow-[0_0_0_1px_rgba(252,236,188,0.55),0_10px_30px_rgba(3,10,7,0.65)]"
+      className="block rounded-2xl bg-black object-contain shadow-[0_0_0_1px_rgba(223,232,223,0.18),0_10px_30px_rgba(3,10,7,0.65)]"
       draggable={false}
     />
   );
@@ -190,18 +197,7 @@ export function AppShell() {
         <header className="border-b border-line bg-surface/90">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
             <div className="flex items-center gap-3">
-              <div className="rounded-full bg-[#0e1513] p-1.5 ring-1 ring-[#dfe8df]/15 shadow-[0_8px_30px_rgba(0,0,0,0.38)]">
-                <Crest size={74} />
-              </div>
-              <div>
-                <div className="font-display text-[1.7rem] font-semibold leading-none tracking-[0.2em] text-[#f3f5f2] uppercase">
-                  AGA KHAN
-                </div>
-                <div className="mt-2 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.3em] text-[#d4b66a]">
-                  <span className="h-px w-5 bg-[#d4b66a]/70" />
-                  Football Academy
-                </div>
-              </div>
+              <Crest size={84} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex overflow-hidden rounded-full border border-line bg-[#0d1412] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
@@ -412,15 +408,7 @@ export function AppShell() {
                 ← Back to squad
               </button>
               <div className="mb-6 flex flex-col items-center gap-3">
-                <Crest size={64} />
-                <div className="text-center">
-                  <div className="font-display text-2xl font-semibold tracking-[0.15em] text-[#f3f5f2] uppercase">
-                    AGA KHAN
-                  </div>
-                  <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-[#d4b66a]">
-                    Football Academy
-                  </div>
-                </div>
+                <Crest size={132} />
               </div>
               <EmailPasswordForm />
             </div>
