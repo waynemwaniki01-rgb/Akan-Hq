@@ -24,17 +24,22 @@ import { usePitchStore } from "@/lib/pitch/store";
 import { rankFormations, slotMapFromEval } from "@/lib/pitch/ai";
 import { cn } from "@/lib/utils";
 
+// Both images live in the "public" folder and are served from the site root.
+// If you ever export the banner with a different file type (e.g. banner.jpg),
+// change the extension here and nowhere else.
+const LOGO_SRC = "/logo.png";
+const BANNER_SRC = "/banner.png";
+
 /**
- * The academy logo. The file lives at public/logo.png and is served from /logo.png.
- * The logo already contains the words "AGA KHAN" and "SQUAD HUB", so it is shown
- * on its own (no extra text beside it). It has a solid black background, so it is
- * shown as a rounded badge with a thin light edge rather than cropped to a circle
- * (a circle would cut into the curved text).
+ * The academy logo. The logo already contains the words "AGA KHAN" and
+ * "SQUAD HUB", so it is shown on its own (no extra text beside it). It has a
+ * solid black background, so it is shown as a rounded badge with a thin light
+ * edge rather than cropped to a circle (a circle would cut into the curved text).
  */
 function Crest({ size = 42 }: { size?: number }) {
   return (
     <img
-      src="/logo.png"
+      src={LOGO_SRC}
       alt="Aga Khan Squad Hub logo"
       width={size}
       height={size}
@@ -195,6 +200,18 @@ export function AppShell() {
           </div>
         )}
         <header className="border-b border-line bg-surface/90">
+          {/* "The House of Champions" banner, shown in full at the top of every page.
+              It is not cropped, so the title and every face stay visible. */}
+          <div className="mx-auto max-w-6xl px-4 pt-4">
+            <img
+              src={BANNER_SRC}
+              alt="The House of Champions — Aga Khan Squad Hub"
+              width={813}
+              height={413}
+              className="mx-auto block h-auto w-full max-w-3xl rounded-2xl shadow-[0_0_0_1px_rgba(223,232,223,0.14),0_16px_40px_rgba(3,10,7,0.55)]"
+              draggable={false}
+            />
+          </div>
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
             <div className="flex items-center gap-3">
               <Crest size={84} />
@@ -396,21 +413,35 @@ export function AppShell() {
         </SignedIn>
 
         {/* Full-screen sign-in page (replaces the old small popup).
-            Only shows while signed out; disappears automatically after sign-in. */}
+            The banner fills the whole screen behind it, darkened so the form
+            stays easy to read. Only shows while signed out; disappears
+            automatically after sign-in. */}
         {signInOpen && (
           <SignedOut>
             <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-bg px-4 py-10">
+              {/* Background layers: the banner, then a dark overlay on top of it. */}
+              <img
+                src={BANNER_SRC}
+                alt=""
+                aria-hidden="true"
+                className="pointer-events-none fixed inset-0 h-full w-full object-cover"
+                draggable={false}
+              />
+              <div className="pointer-events-none fixed inset-0 bg-black/75" />
+
               <button
                 type="button"
                 onClick={() => setSignInOpen(false)}
-                className="absolute right-6 top-6 text-sm text-muted hover:text-fg"
+                className="absolute right-6 top-6 z-10 text-sm text-muted hover:text-fg"
               >
                 ← Back to squad
               </button>
-              <div className="mb-6 flex flex-col items-center gap-3">
+              <div className="relative z-10 mb-6 flex flex-col items-center gap-3">
                 <Crest size={132} />
               </div>
-              <EmailPasswordForm />
+              <div className="relative z-10 w-full max-w-md">
+                <EmailPasswordForm />
+              </div>
             </div>
           </SignedOut>
         )}
