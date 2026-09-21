@@ -202,13 +202,11 @@ export function AppShell() {
         <header className="border-b border-line bg-surface/90">
           {/* "The House of Champions" banner, shown in full at the top of every page.
               It is not cropped, so the title and every face stay visible. */}
-          <div className="mx-auto max-w-6xl px-4 pt-4">
+          <div className="w-full overflow-hidden bg-black">
             <img
               src={BANNER_SRC}
               alt="The House of Champions — Aga Khan Squad Hub"
-              width={813}
-              height={413}
-              className="mx-auto block h-auto w-full max-w-3xl rounded-2xl shadow-[0_0_0_1px_rgba(223,232,223,0.14),0_16px_40px_rgba(3,10,7,0.55)]"
+              className="block h-[140px] w-full object-cover sm:h-[180px] md:h-[220px]"
               draggable={false}
             />
           </div>
