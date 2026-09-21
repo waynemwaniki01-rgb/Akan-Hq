@@ -5,6 +5,7 @@ import { clamp, uid } from "@/lib/utils";
 import { emptyData } from "@/lib/pitch/seed";
 import { spreadDetail } from "@/lib/pitch/ratings";
 import { FORMAT_LIST, positionFromPoint } from "@/lib/pitch/formations";
+import { compressImageToDataUrl, dataUrlBytes } from "@/lib/pitch/image";
 import type {
   CardDesign,
   CardStyle,
@@ -151,6 +152,46 @@ function persistSlice(s: PitchStore): DeskData {
     designPresets: s.designPresets,
     meta: s.meta,
   };
+}
+
+// Any base64 photo bigger than this gets silently re-compressed before a
+// save goes out. This is a MIGRATION for photos that were already saved
+// before compressImageToDataUrl enforced a real byte cap — those old
+// photos are still sitting oversized in the database and local state, and
+// deploying the fixed image.ts does nothing to shrink data that's already
+// stored. Every future save now passes through this check first, so the
+// very next time anyone hits Save, old oversized photos get fixed
+// automatically instead of needing to be individually re-uploaded.
+const SAVE_PHOTO_BUDGET = 220_000;
+
+/**
+ * Walk every player/coach/trophy photo in a desk and re-compress any data:
+ * URL photo still over budget. Leaves https:// photo URLs and already-small
+ * photos untouched. Returns the (possibly updated) desk plus whether
+ * anything actually changed, so the caller can decide whether to write the
+ * shrunk versions back into local state.
+ */
+async function shrinkOversizedPhotos(desk: DeskData): Promise<{ desk: DeskData; changed: boolean }> {
+  let changed = false;
+
+  async function fix(photo: string | null | undefined): Promise<string | null | undefined> {
+    if (!photo || !photo.startsWith("data:image/")) return photo;
+    if (dataUrlBytes(photo) <= SAVE_PHOTO_BUDGET) return photo;
+    try {
+      const shrunk = await compressImageToDataUrl(photo, { maxBytes: SAVE_PHOTO_BUDGET });
+      changed = true;
+      return shrunk;
+    } catch (err) {
+      console.error("[desk] failed to shrink an oversized photo, sending as-is:", err);
+      return photo;
+    }
+  }
+
+  const players = await Promise.all(desk.players.map(async (p) => ({ ...p, photo: await fix(p.photo) })));
+  const coaches = await Promise.all(desk.coaches.map(async (c) => ({ ...c, photo: await fix(c.photo) })));
+  const trophies = await Promise.all(desk.trophies.map(async (t) => ({ ...t, photo: await fix(t.photo) })));
+
+  return { desk: { ...desk, players, coaches, trophies }, changed };
 }
 
 const indexedDBStorage: StateStorage = {
@@ -579,7 +620,18 @@ export const usePitchStore = create<PitchStore>()(
       saveToServer: async () => {
         set({ syncState: "saving", syncError: null });
         try {
-          const desk = persistSlice(get());
+          const raw = persistSlice(get());
+
+          // MIGRATION: re-compress any photo that's still oversized from
+          // before compressImageToDataUrl enforced a real byte cap. This is
+          // what actually fixes the 413 for data that was already saved —
+          // deploying the fixed image.ts alone does nothing for photos
+          // already sitting in the store or the database.
+          const { desk, changed } = await shrinkOversizedPhotos(raw);
+          if (changed) {
+            set({ players: desk.players, coaches: desk.coaches, trophies: desk.trophies });
+          }
+
           const res = await fetch("/desk", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
