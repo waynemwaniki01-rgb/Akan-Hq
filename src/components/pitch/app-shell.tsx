@@ -199,23 +199,30 @@ export function AppShell() {
             )}
           </div>
         )}
-        <header className="relative min-h-[220px] overflow-hidden border-b border-line sm:min-h-[260px]">
-          {/* "The House of Champions" banner as a hero background behind the
-              logo, tabs and nav rows — not a separate strip above them. The
-              gradient keeps every control readable over any part of the photo
-              and fades the bottom edge into the page background so there's
-              no hard seam where the image ends. */}
-          <div className="absolute inset-0">
-            <img
-              src={BANNER_SRC}
-              alt="The House of Champions — Aga Khan Squad Hub"
-              className="h-full w-full object-cover object-top"
-              draggable={false}
+        <header className="relative overflow-hidden border-b border-line">
+          {/* Custom-built hero background — color, texture and type instead
+              of the source photo, so there's no crop or letterboxing to
+              fight with, and no faces competing with the controls. */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_120%_100%_at_30%_0%,#1f6b4a_0%,#0d1a13_55%,#060a07_100%)]">
+            <div
+              className="absolute -left-16 -top-16 h-64 w-64 opacity-20 sm:h-80 sm:w-80"
+              style={{
+                backgroundImage: "radial-gradient(circle, #b9f24a 1.6px, transparent 1.7px)",
+                backgroundSize: "11px 11px",
+              }}
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/70 to-bg" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/10 to-bg" />
           </div>
 
           <div className="relative z-10">
+            <div className="flex flex-col items-center gap-1 px-4 pb-2 pt-10 text-center">
+              <h1 className="text-[clamp(2.1rem,6vw,4rem)] font-black uppercase italic leading-[0.92] tracking-tight text-[#eef3ea] drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+                The house of
+                <br />
+                champions
+              </h1>
+              <div className="mt-2 h-[3px] w-16 rounded-full bg-[#b9f24a]" />
+            </div>
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
             <div className="flex items-center gap-3">
               <Crest size={52} />
