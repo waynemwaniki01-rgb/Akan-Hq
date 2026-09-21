@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 // Both images live in the "public" folder and are served from the site root.
 // If you ever export the banner with a different file type (e.g. banner.jpg),
 // change the extension here and nowhere else.
-const LOGO_SRC = "/logo.png";
+const LOGO_SRC = "/logo.jpeg";
 const BANNER_SRC = "/banner.png";
 
 /**
