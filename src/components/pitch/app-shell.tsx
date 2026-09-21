@@ -43,7 +43,7 @@ function Crest({ size = 42 }: { size?: number }) {
       alt="Aga Khan Squad Hub logo"
       width={size}
       height={size}
-      className="block rounded-2xl bg-black object-contain shadow-[0_0_0_1px_rgba(223,232,223,0.18),0_10px_30px_rgba(3,10,7,0.65)]"
+      className="block rounded-full bg-black/40 object-contain p-1 shadow-[0_0_0_1px_rgba(223,232,223,0.25)] backdrop-blur-sm"
       draggable={false}
     />
   );
@@ -199,20 +199,26 @@ export function AppShell() {
             )}
           </div>
         )}
-        <header className="border-b border-line bg-surface/90">
-          {/* "The House of Champions" banner, shown in full at the top of every page.
-              It is not cropped, so the title and every face stay visible. */}
-          <div className="w-full overflow-hidden bg-black">
+        <header className="relative min-h-[220px] overflow-hidden border-b border-line sm:min-h-[260px]">
+          {/* "The House of Champions" banner as a hero background behind the
+              logo, tabs and nav rows — not a separate strip above them. The
+              gradient keeps every control readable over any part of the photo
+              and fades the bottom edge into the page background so there's
+              no hard seam where the image ends. */}
+          <div className="absolute inset-0">
             <img
               src={BANNER_SRC}
               alt="The House of Champions — Aga Khan Squad Hub"
-              className="block h-[140px] w-full object-cover sm:h-[180px] md:h-[220px]"
+              className="h-full w-full object-cover object-top"
               draggable={false}
             />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/70 to-bg" />
           </div>
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+
+          <div className="relative z-10">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
             <div className="flex items-center gap-3">
-              <Crest size={84} />
+              <Crest size={52} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex overflow-hidden rounded-full border border-line bg-[#0d1412] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
@@ -357,6 +363,7 @@ export function AppShell() {
               Tactical Lab — formation intelligence, evidence, and recommendations grounded in squad data.
             </nav>
           )}
+          </div>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-4 pb-16">
           {mode === "squad" && squadTab === "home" && (
