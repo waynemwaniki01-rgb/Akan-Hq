@@ -249,6 +249,13 @@ export function mergeCardStyle(partial?: Partial<CardStyle> | null): CardStyle {
   return { ...DEFAULT_CARD_STYLE, ...partial };
 }
 
+/** The dark fallback card-ai.ts used to write into every player's
+ * generatedBackground when the AI design flow didn't produce a real one.
+ * It's treated as "no custom background" here so existing players aren't
+ * stuck on a flat near-black card — they fall through to the tier's own
+ * colorful --ultimate-surface instead. */
+const PLACEHOLDER_GENERATED_BG = "linear-gradient(180deg, #18181b 0%, #09090b 100%)";
+
 export function styleToCssVars(style: CardStyle | undefined): Record<string, string> {
   const s = mergeCardStyle(style);
   const v: Record<string, string> = {
@@ -276,7 +283,9 @@ export function styleToCssVars(style: CardStyle | undefined): Record<string, str
   if (s.glowColor) v["--pc-glow"] = s.glowColor;
   if (s.metallic) v["--pc-metal"] = s.metallic;
   if (s.photoTint) v["--pc-photo-tint"] = s.photoTint;
-  if (s.generatedBackground) v["--pc-generated-bg"] = s.generatedBackground;
+  if (s.generatedBackground && s.generatedBackground !== PLACEHOLDER_GENERATED_BG) {
+    v["--pc-generated-bg"] = s.generatedBackground;
+  }
   if (s.gridColor) v["--pc-grid"] = s.gridColor;
   return v;
 }

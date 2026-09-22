@@ -123,7 +123,10 @@ export async function designCardFromPromptAsync(
   const activeStyles: CardAiStyles = apiStyles || fallbackParsed;
 
   const styleFromAI: Partial<CardStyle> = {
-    generatedBackground: activeStyles.background || "linear-gradient(180deg, #18181b 0%, #09090b 100%)",
+    // No hardcoded dark fallback here anymore — when neither the AI nor the
+    // prompt parser produces a background, leave it unset so the card falls
+    // back to its tier's own colorful surface instead of going flat black.
+    generatedBackground: activeStyles.background || "",
     accent: activeStyles.accentColor || "#e2e8f0",
     glowColor: activeStyles.glowColor || "rgba(255, 255, 255, 0.2)",
     gridColor: activeStyles.gridColor || "rgba(255, 255, 255, 0.05)",
@@ -149,7 +152,9 @@ export function designCardFromPrompt(rawPrompt: string, base?: CardStyle): CardP
 
   const style = mergeCardStyle({
     ...base,
-    generatedBackground: parsed.background || "linear-gradient(180deg, #18181b 0%, #09090b 100%)",
+    // Same as above: no hardcoded dark fallback, so an unmatched prompt
+    // doesn't pin the card to a flat near-black background.
+    generatedBackground: parsed.background || "",
     accent: parsed.accentColor || "#e2e8f0",
     glowColor: parsed.glowColor || "rgba(255, 255, 255, 0.2)",
     text: "#ffffff",
