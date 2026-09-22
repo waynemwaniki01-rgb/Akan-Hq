@@ -1360,8 +1360,8 @@ header {
   --ultimate-ink: var(--pc-ink);
   --ultimate-line: color-mix(in oklab, var(--pc-metal) 72%, var(--pc-accent));
   --ultimate-surface:
-    radial-gradient(85% 44% at 50% 17%, color-mix(in oklab, var(--pc-accent) 30%, transparent), transparent 68%),
-    linear-gradient(158deg, color-mix(in oklab, var(--pc-mid) 94%, white 5%), var(--pc-base) 58%, color-mix(in oklab, var(--pc-base) 82%, black 18%));
+    radial-gradient(130% 95% at 50% 6%, color-mix(in oklab, var(--pc-accent) 62%, transparent), transparent 74%),
+    linear-gradient(168deg, color-mix(in oklab, var(--pc-mid) 82%, var(--pc-accent) 18%) 0%, var(--pc-mid) 46%, color-mix(in oklab, var(--pc-base) 88%, black 12%) 100%);
   --ultimate-generated-surface: var(--pc-generated-bg, var(--ultimate-surface));
   perspective: 1000px;
   line-height: 1;
@@ -1559,8 +1559,15 @@ header {
   background: transparent;
   mix-blend-mode: normal;
   opacity: 1;
+  /* Feathered on every edge (not just the bottom) so the photo's own
+     rectangular background fades into the card's matching surface
+     color instead of showing as a hard-edged box behind the player. */
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
+  mask-image:
+    radial-gradient(72% 84% at 50% 46%, #000 58%, transparent 100%),
+    linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
   filter: contrast(1.08) brightness(1.03) saturate(1.05) drop-shadow(0 12px 18px color-mix(in oklab, var(--pc-glow) 55%, transparent)) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.34));
   transform: scale(1.06) translateY(4%);
   transition: transform 320ms cubic-bezier(0.2, 0, 0, 1);
@@ -1573,7 +1580,11 @@ header {
   mix-blend-mode: normal;
   opacity: 1;
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 90%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 90%, transparent 100%);
+  mask-image:
+    radial-gradient(76% 88% at 50% 46%, #000 60%, transparent 100%),
+    linear-gradient(to bottom, #000 0%, #000 90%, transparent 100%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
   filter: contrast(1.08) brightness(1.03) saturate(1.05) drop-shadow(0 10px 16px color-mix(in oklab, var(--pc-glow) 60%, transparent));
 }
 .player-card-create-preview:hover .ultimate-photo-wrap .pcard-photo {
