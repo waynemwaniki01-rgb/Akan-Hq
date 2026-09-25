@@ -1948,3 +1948,67 @@ header {
   background-size: 18px 32px;
   mask-image: linear-gradient(to bottom, transparent, black 20%, black 72%, transparent);
 }
+
+/* ---------------------------------------------------------------------
+   Hero header — kicker badge, gold shine on "champions", glowing
+   pulsing underline. Small, tasteful motion; respects reduced-motion,
+   and reuses the accent gold/green already used elsewhere (Legacy
+   trophies, aura rings) instead of introducing new colors.
+   --------------------------------------------------------------------- */
+.hero-kicker {
+  box-shadow: 0 0 18px rgba(212, 182, 106, 0.12);
+}
+
+.hero-shine-gold {
+  background: linear-gradient(
+    100deg,
+    #d4b56a 0%,
+    #f3e2a8 22%,
+    #d4b56a 44%,
+    #b9f24a 60%,
+    #d4b56a 78%,
+    #f3e2a8 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: hero-shine-sweep 6s ease-in-out infinite;
+}
+
+@keyframes hero-shine-sweep {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.hero-underline {
+  background: linear-gradient(90deg, transparent, #d4b56a 20%, #b9f24a 50%, #d4b56a 80%, transparent);
+  box-shadow: 0 0 16px rgba(185, 242, 74, 0.45), 0 0 28px rgba(212, 181, 106, 0.25);
+  animation: hero-underline-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes hero-underline-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scaleX(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-shine-gold,
+  .hero-underline {
+    animation: none !important;
+  }
+}

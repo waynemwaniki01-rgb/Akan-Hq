@@ -36,6 +36,11 @@ const ROLE_OPTIONS = [
 const optionClass =
   "w-full rounded-[14px] border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-accent/60";
 
+/** Small delay helper used by the sign-in-race retry below. */
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function RoleChoice({ onClose }: { onClose: () => void }) {
   const players = usePitchStore((s) => s.players);
   const [loading, setLoading] = useState(true);
@@ -68,12 +73,28 @@ export function RoleChoice({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/access", {
+      let res = await fetch("/access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      let data = (await res.json().catch(() => ({}))) as { error?: string };
+
+      // Right after signing in, the session cookie can take a brief moment
+      // to fully land in the browser — a request fired in that window can
+      // come back 401 "Please sign in first" even though the person really
+      // is signed in. Rather than showing that as an error, wait a beat and
+      // try exactly once more before giving up for real.
+      if (!res.ok && res.status === 401 && /sign in first/i.test(data.error ?? "")) {
+        await wait(700);
+        res = await fetch("/access", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        data = (await res.json().catch(() => ({}))) as { error?: string };
+      }
+
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
       setChanging(false);
       setStep("choose");

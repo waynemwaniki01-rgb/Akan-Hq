@@ -333,10 +333,15 @@ export function PitchSurface({
                   }}
                 />
               ) : player ? (
+                // Was size="board" — that preset is actually the SMALLEST card
+                // size (62x90px, meant for tiny board dots elsewhere), which is
+                // why cards looked tiny here despite this being the full Board
+                // view. "mini" (132x210px) is a real, legible card size that
+                // still fits reasonably inside formation slots.
                 <PlayerCard
                   player={player}
                   matches={matches}
-                  size="board"
+                  size="mini"
                   slotPosition={s.pos}
                   onClick={() => {
                     if (justDraggedRef.current) {
@@ -347,7 +352,7 @@ export function PitchSurface({
                   }}
                 />
               ) : (
-                <EmptySlotCard pos={s.pos} onClick={() => onSlotClick?.(s)} size="board" />
+                <EmptySlotCard pos={s.pos} onClick={() => onSlotClick?.(s)} size="mini" />
               )}
             </div>
           );

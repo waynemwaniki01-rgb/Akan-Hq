@@ -204,11 +204,19 @@ export const auth = betterAuth({
     },
   },
 
-  // Cache the session in the short-lived signed `session_data` cookie so reads
-  // (incl. the client's `/get-session`) skip the DB — this shrinks the "loading"
-  // window and reduces auth flicker. See the `auth` skill for the full
-  // flicker-prevention guidance (gate on `isPending`; SSR the session).
-  session: { cookieCache: { enabled: true, maxAge: 300 } },
+  // Session lasts 60 days, and is "rolling": every time you're active within
+  // a 7-day window it auto-refreshes for another 60 days from that moment.
+  // As long as you open the app at least once a week, you never get
+  // force-signed-out. (Previously expiresIn/updateAge were left unset, which
+  // silently used Better Auth's 7-day default — that's what was logging
+  // people out "after some time".)
+  // cookieCache below is unrelated to session length — it's just a 5-minute
+  // read cache so `/get-session` doesn't hit the DB on every check.
+  session: {
+    expiresIn: 60 * 60 * 24 * 60, // 60 days
+    updateAge: 60 * 60 * 24 * 7, // refresh session if used within the last 7 days
+    cookieCache: { enabled: true, maxAge: 300 },
+  },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),

@@ -211,17 +211,27 @@ export function AppShell() {
                 backgroundSize: "11px 11px",
               }}
             />
+            <div
+              className="absolute -right-16 -top-16 h-64 w-64 opacity-[0.12] sm:h-80 sm:w-80"
+              style={{
+                backgroundImage: "radial-gradient(circle, #d4b56a 1.6px, transparent 1.7px)",
+                backgroundSize: "11px 11px",
+              }}
+            />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/10 to-bg" />
           </div>
 
           <div className="relative z-10">
-            <div className="flex flex-col items-center gap-1 px-4 pb-2 pt-10 text-center">
-              <h1 className="text-[clamp(2.1rem,6vw,4rem)] font-black uppercase italic leading-[0.92] tracking-tight text-[#eef3ea] drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
-                The house of
+            <div className="flex flex-col items-center gap-2 px-4 pb-3 pt-10 text-center">
+              <div className="hero-kicker inline-flex items-center gap-2 rounded-full border border-[#d4b66a]/35 bg-[#d4b66a]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.32em] text-[#f0d79a]">
+                Aga Khan Football Academy
+              </div>
+              <h1 className="text-[clamp(2.1rem,6vw,4rem)] font-black uppercase italic leading-[0.92] tracking-tight drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+                <span className="text-[#eef3ea]">The home of</span>
                 <br />
-                champions
+                <span className="hero-shine-gold">champions</span>
               </h1>
-              <div className="mt-2 h-[3px] w-16 rounded-full bg-[#b9f24a]" />
+              <div className="hero-underline mt-3 h-[4px] w-24 rounded-full" />
             </div>
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
             <div className="flex items-center gap-3">

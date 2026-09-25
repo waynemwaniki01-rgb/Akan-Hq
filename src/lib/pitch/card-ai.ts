@@ -123,10 +123,17 @@ export async function designCardFromPromptAsync(
   const activeStyles: CardAiStyles = apiStyles || fallbackParsed;
 
   const styleFromAI: Partial<CardStyle> = {
-    // No hardcoded dark fallback here anymore — when neither the AI nor the
-    // prompt parser produces a background, leave it unset so the card falls
-    // back to its tier's own colorful surface instead of going flat black.
-    generatedBackground: activeStyles.background || "",
+    // BACKGROUND IS PERMANENTLY DISABLED HERE ON PURPOSE.
+    // Neither the AI response nor the prompt-parsed gradient is ever used
+    // for generatedBackground anymore — not even activeStyles.background.
+    // This guarantees --pc-generated-bg is never set on the card, so the
+    // card ALWAYS falls through to its tier's own colorful --ultimate-surface
+    // gradient. This is what stops the card from ever going black/dark,
+    // including cases where Gemini itself picks a dark gradient for a
+    // "futuristic" themed prompt. Accent, glow, grid, text, and border
+    // still take the AI/prompt colors as before — only the background
+    // field is neutralized.
+    generatedBackground: "",
     accent: activeStyles.accentColor || "#e2e8f0",
     glowColor: activeStyles.glowColor || "rgba(255, 255, 255, 0.2)",
     gridColor: activeStyles.gridColor || "rgba(255, 255, 255, 0.05)",
@@ -152,9 +159,10 @@ export function designCardFromPrompt(rawPrompt: string, base?: CardStyle): CardP
 
   const style = mergeCardStyle({
     ...base,
-    // Same as above: no hardcoded dark fallback, so an unmatched prompt
-    // doesn't pin the card to a flat near-black background.
-    generatedBackground: parsed.background || "",
+    // Same as above: background is permanently disabled — never derived
+    // from the parsed prompt colors — so a themed prompt can never pin
+    // the card to a flat dark background again.
+    generatedBackground: "",
     accent: parsed.accentColor || "#e2e8f0",
     glowColor: parsed.glowColor || "rgba(255, 255, 255, 0.2)",
     text: "#ffffff",
