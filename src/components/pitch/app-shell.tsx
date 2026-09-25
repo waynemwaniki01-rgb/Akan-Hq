@@ -17,11 +17,13 @@ import { BoardView, SimulateView, PossessionView, CompareView } from "./tactiq-v
 import { AdvisorView, SlotPicker } from "./advisor-view";
 import { RoleChoice } from "./role-choice";
 import { ApprovalsPanel } from "./approvals-panel";
+import { MusicControls } from "./MusicControls";
 import { EmailPasswordForm, SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { canApproveSignups, canEditRoster, useRole } from "@/lib/auth/use-role";
 import { CATEGORIES, type PitchSlot } from "@/lib/pitch/types";
 import { usePitchStore } from "@/lib/pitch/store";
 import { rankFormations, slotMapFromEval } from "@/lib/pitch/ai";
+import { useSectionMusic } from "@/lib/pitch/useSectionMusic";
 import { cn } from "@/lib/utils";
 
 // Both images live in the "public" folder and are served from the site root.
@@ -96,6 +98,27 @@ export function AppShell() {
   // Dismissible banner state — separate from syncState so a user can close
   // a stale error without it reappearing until the next real sync event.
   const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Which background-music track should be playing right now, based on
+  // what's actually on screen. Falls back to no music (null) for tabs
+  // that were never given a track. My Cards, Coaches, Training, Matches,
+  // and Calendar all map to the same "card" id so they share one
+  // continuous track without restarting between them. Legacy gets its
+  // own id/track. The full-screen sign-in overlay takes priority over
+  // everything else since it visually covers the whole app.
+  const sectionId = useMemo(() => {
+    if (signInOpen) return "login";
+    if (mode === "squad" && squadTab === "home") return "home";
+    if (mode === "squad" && ["players", "coaches", "training", "matches", "calendar"].includes(squadTab)) {
+      return "card";
+    }
+    if (mode === "squad" && squadTab === "legacy") return "legacy";
+    if (mode === "tactiq" && ["board", "simulate", "possession", "compare"].includes(tactiqTab)) {
+      return tactiqTab;
+    }
+    return null;
+  }, [signInOpen, mode, squadTab, tactiqTab]);
+  const musicControls = useSectionMusic(sectionId);
 
   useEffect(() => {
     if (!isOwner) return;
@@ -291,6 +314,7 @@ export function AppShell() {
               >
                 {reducedMotion ? "Motion off" : "Motion on"}
               </button>
+              {sectionId && <MusicControls controls={musicControls} />}
               <SignedIn>
                 <UserButton />
                 {isOwner && (
